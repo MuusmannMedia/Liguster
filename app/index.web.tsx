@@ -1,13 +1,36 @@
 // app/index.web.tsx
-import { Link } from "expo-router";
+import { router } from "expo-router";
 import React, { useEffect } from "react";
-import { Image, ScrollView, StyleSheet, Text, View } from "react-native";
-
-// Brug ESM import (SSR-/bundler-venlig)
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import LogoNEG from "../assets/images/Liguster-logo-NEG.png";
+
+function NavButton({
+  label,
+  to,
+}: {
+  label: string;
+  to: string;
+}) {
+  return (
+    <Pressable
+      onPress={() => router.push(to)}
+      onKeyDown={(e) => {
+        if (e.nativeEvent.key === "Enter" || e.nativeEvent.key === " ") {
+          e.preventDefault();
+          router.push(to);
+        }
+      }}
+      accessibilityRole="link"
+      style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}
+    >
+      <Text style={styles.linkText}>{label}</Text>
+    </Pressable>
+  );
+}
 
 export default function WebLanding() {
   useEffect(() => {
+    // Debug – kan slettes
     console.log("EXPO_PUBLIC_SUPABASE_URL:", process.env.EXPO_PUBLIC_SUPABASE_URL);
     console.log(
       "EXPO_PUBLIC_SUPABASE_ANON_KEY:",
@@ -31,11 +54,8 @@ export default function WebLanding() {
               Webudgaven er under udvikling. Har du allerede en konto, kan du logge ind nedenfor.
             </Text>
 
-            {/* Link til Privacy direkte i hero */}
             <View style={styles.inlineLinks}>
-              <Link href="/privacy" style={styles.inlineLink} accessibilityRole="link">
-                Privacy Policy
-              </Link>
+              <NavButton label="Privacy Policy" to="/privacy" />
             </View>
           </View>
 
@@ -54,18 +74,19 @@ export default function WebLanding() {
         </View>
       </View>
 
-      {/* Bottom CTA – login + privacy link */}
+      {/* Bottom CTA */}
       <View style={styles.bottomCta}>
         <Text style={styles.bottomCtaTitle}>Klar til at logge ind?</Text>
         <View style={styles.bottomCtaRow}>
-          <Link href="/LoginScreen" style={styles.bottomLink} accessibilityRole="link">
-            Log ind
-          </Link>
+          <NavButton label="Log ind" to="/LoginScreen" />
           <Text style={styles.dot}>·</Text>
-          <Link href="/privacy" style={styles.bottomLink} accessibilityRole="link">
-            Privacy Policy
-          </Link>
+          <NavButton label="Privacy Policy" to="/privacy" />
         </View>
+
+        <View style={{ marginTop: 8 }}>
+          <NavButton label="Se opslag uden login" to="/Nabolag" />
+        </View>
+
         <Text style={styles.copy}>© {new Date().getFullYear()} Liguster</Text>
       </View>
     </ScrollView>
@@ -84,80 +105,39 @@ function Feature({ title, text }: { title: string; text: string }) {
 const styles = StyleSheet.create({
   page: { backgroundColor: "#0f1623" },
 
-  /* Hero */
   hero: { paddingVertical: 56, backgroundColor: "#0f1623" },
   heroInner: {
-    maxWidth: 1200,
-    width: "100%",
-    alignSelf: "center",
-    paddingHorizontal: 24,
-    gap: 32,
-    flexDirection: "row",
-    flexWrap: "wrap",
+    maxWidth: 1200, width: "100%", alignSelf: "center",
+    paddingHorizontal: 24, gap: 32, flexDirection: "row", flexWrap: "wrap",
   },
   heroCol: { flex: 1, minWidth: 300, justifyContent: "center" },
   heroTitle: { color: "white", fontSize: 42, fontWeight: "800", marginBottom: 12 },
-  heroSubtitle: {
-    color: "#cbd5e1",
-    fontSize: 18,
-    lineHeight: 26,
-    marginBottom: 16,
-    maxWidth: 560,
-  },
-  cta: {
-    backgroundColor: "#22c55e",
-    paddingVertical: 12,
-    paddingHorizontal: 18,
-    borderRadius: 12,
-  },
-  ctaText: { color: "#0b1220", fontWeight: "800" },
+  heroSubtitle: { color: "#cbd5e1", fontSize: 18, lineHeight: 26, marginBottom: 16, maxWidth: 560 },
   heroNote: { color: "#94a3b8", fontSize: 13, marginTop: 10 },
   heroImage: { width: "100%", height: 320 },
 
   inlineLinks: { flexDirection: "row", gap: 16, marginTop: 12 },
-  inlineLink: { color: "#93c5fd", textDecorationLine: "underline", fontSize: 14 },
 
-  /* Features */
+  linkText: { color: "#93c5fd", textDecorationLine: "underline", fontSize: 14 },
+
   section: { backgroundColor: "#0f1623", paddingVertical: 40 },
   columns: {
-    maxWidth: 1200,
-    width: "100%",
-    alignSelf: "center",
-    paddingHorizontal: 24,
-    gap: 24,
-    flexDirection: "row",
-    flexWrap: "wrap",
+    maxWidth: 1200, width: "100%", alignSelf: "center",
+    paddingHorizontal: 24, gap: 24, flexDirection: "row", flexWrap: "wrap",
   },
   feature: {
-    flex: 1,
-    minWidth: 260,
-    backgroundColor: "#111827",
-    borderWidth: 1,
-    borderColor: "#1f2937",
-    padding: 20,
-    borderRadius: 16,
+    flex: 1, minWidth: 260, backgroundColor: "#111827", borderWidth: 1, borderColor: "#1f2937",
+    padding: 20, borderRadius: 16,
   },
-  featureTitle: {
-    color: "#e2e8f0",
-    fontSize: 18,
-    fontWeight: "700",
-    marginBottom: 6,
-  },
+  featureTitle: { color: "#e2e8f0", fontSize: 18, fontWeight: "700", marginBottom: 6 },
   featureText: { color: "#94a3b8", lineHeight: 20 },
 
-  /* Bottom CTA */
   bottomCta: {
-    backgroundColor: "#0b1220",
-    borderTopWidth: 1,
-    borderTopColor: "#1f2937",
-    paddingVertical: 36,
-    paddingHorizontal: 24,
-    alignItems: "center",
-    gap: 8,
+    backgroundColor: "#0b1220", borderTopWidth: 1, borderTopColor: "#1f2937",
+    paddingVertical: 36, paddingHorizontal: 24, alignItems: "center", gap: 8,
   },
   bottomCtaTitle: { color: "#e2e8f0", fontWeight: "800", fontSize: 20 },
   bottomCtaRow: { flexDirection: "row", gap: 12, alignItems: "center" },
-  bottomLink: { color: "#cbd5e1", fontSize: 14 },
   dot: { color: "#475569", fontSize: 18, marginHorizontal: 4, marginTop: -2 },
   copy: { color: "#64748b", fontSize: 12, marginTop: 6 },
 });

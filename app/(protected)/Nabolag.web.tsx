@@ -232,9 +232,8 @@ export default function NabolagWeb() {
   }, []);
 
   const {
-    userId, userLocation, loading, refreshing, filteredPosts, searchQuery, setSearchQuery,
+    userId, loading, refreshing, filteredPosts, searchQuery, setSearchQuery,
     radius, handleRadiusChange, kategoriFilter, setKategoriFilter, onRefresh, createPost,
-    distanceInKm,
   } = useNabolag();
 
   const { width } = useWindowDimensions();
@@ -267,7 +266,6 @@ export default function NabolagWeb() {
             <Text style={styles.title}>{item.overskrift}</Text>
             {!!item.omraade && <Text style={styles.place}>{item.omraade}</Text>}
             {!!item.text && <Text numberOfLines={1} ellipsizeMode="tail" style={styles.teaser}>{item.text}</Text>}
-            {/* afstandsbadge beholdes ikke her – vises inde i detalje */}
           </View>
         </View>
       </TouchableOpacity>
@@ -391,34 +389,4 @@ const styles = StyleSheet.create({
 
   modalOverlay: {
     flex: 1, backgroundColor: "rgba(0,0,0,0.45)",
-    justifyContent: "center", alignItems: "center", padding: 18,
-  },
-  modalCard: {
-    backgroundColor: "#fff", borderRadius: RADII.xl,
-    borderWidth: 1, borderColor: "#eef1f4", padding: 18, width: 420,
-  },
-  modalTitle: { fontSize: 18, fontWeight: "900", color: "#111827", marginBottom: 12 },
-  modalOption: {
-    paddingVertical: 10, paddingHorizontal: 12, borderRadius: RADII.md,
-    backgroundColor: "#f6f8fa", marginBottom: 8, alignItems: "center",
-  },
-  modalClose: { alignSelf: "center", marginTop: 6, padding: 8 },
-  modalCloseText: { color: "#374151", fontWeight: "700" },
-
-  input: {
-    backgroundColor: "#fff", borderRadius: RADII.md, borderWidth: 1,
-    borderColor: "#e5e8ec", paddingHorizontal: 10,
-    paddingVertical: Platform.OS === "web" ? 10 : 8,
-    color: "#000", marginTop: 6, fontSize: 14,
-  },
-  inputMulti: { minHeight: 90, textAlignVertical: "top" },
-  label: { color: "#111827", fontWeight: "700" },
-
-  smallBtn: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: RADII.md, alignSelf: "flex-start" },
-  smallBtnText: { color: "#fff", fontWeight: "800", fontSize: 12 },
-  btn: { backgroundColor: THEME.btn },
-  grayBtn: { backgroundColor: "#9aa0a6" },
-
-  action: { borderRadius: RADII.md, paddingVertical: 12, paddingHorizontal: 16, alignItems: "center", justifyContent: "center" },
-  actionText: { color: "#fff", fontSize: 14, fontWeight: "900" },
-});
+    justifyContent:

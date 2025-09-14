@@ -1,41 +1,24 @@
 // app/index.web.tsx
-import { router } from "expo-router";
 import React, { useEffect } from "react";
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image, ScrollView, StyleSheet, Text, View } from "react-native";
+// ESM import så bundleren kan lave asset fingerprinting
 import LogoNEG from "../assets/images/Liguster-logo-NEG.png";
 
-function NavButton({
-  label,
-  to,
-}: {
-  label: string;
-  to: string;
-}) {
+// Lille helper: et rent <a>-link (fungerer uden JS/hydration)
+function ALink(props: React.PropsWithChildren<{ href: string; style?: any }>) {
   return (
-    <Pressable
-      onPress={() => router.push(to)}
-      onKeyDown={(e) => {
-        if (e.nativeEvent.key === "Enter" || e.nativeEvent.key === " ") {
-          e.preventDefault();
-          router.push(to);
-        }
-      }}
-      accessibilityRole="link"
-      style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}
-    >
-      <Text style={styles.linkText}>{label}</Text>
-    </Pressable>
+    // @ts-ignore – vi er på web, så et native <a> er ok
+    <a href={props.href} style={{ textDecoration: "none" }}>
+      <Text style={props.style}>{props.children}</Text>
+    </a>
   );
 }
 
 export default function WebLanding() {
   useEffect(() => {
-    // Debug – kan slettes
+    // Debug – kan fjernes
     console.log("EXPO_PUBLIC_SUPABASE_URL:", process.env.EXPO_PUBLIC_SUPABASE_URL);
-    console.log(
-      "EXPO_PUBLIC_SUPABASE_ANON_KEY:",
-      process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ? "•sat•" : "•mangler•"
-    );
+    console.log("EXPO_PUBLIC_SUPABASE_ANON_KEY:", process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ? "•sat•" : "•mangler•");
   }, []);
 
   return (
@@ -55,7 +38,7 @@ export default function WebLanding() {
             </Text>
 
             <View style={styles.inlineLinks}>
-              <NavButton label="Privacy Policy" to="/privacy" />
+              <ALink href="/privacy" style={styles.inlineLink}>Privacy Policy</ALink>
             </View>
           </View>
 
@@ -78,13 +61,13 @@ export default function WebLanding() {
       <View style={styles.bottomCta}>
         <Text style={styles.bottomCtaTitle}>Klar til at logge ind?</Text>
         <View style={styles.bottomCtaRow}>
-          <NavButton label="Log ind" to="/LoginScreen" />
+          <ALink href="/LoginScreen" style={styles.bottomLink}>Log ind</ALink>
           <Text style={styles.dot}>·</Text>
-          <NavButton label="Privacy Policy" to="/privacy" />
+          <ALink href="/privacy" style={styles.bottomLink}>Privacy Policy</ALink>
         </View>
 
         <View style={{ marginTop: 8 }}>
-          <NavButton label="Se opslag uden login" to="/Nabolag" />
+          <ALink href="/Nabolag" style={styles.bottomLink}>Se opslag uden login</ALink>
         </View>
 
         <Text style={styles.copy}>© {new Date().getFullYear()} Liguster</Text>
@@ -117,8 +100,7 @@ const styles = StyleSheet.create({
   heroImage: { width: "100%", height: 320 },
 
   inlineLinks: { flexDirection: "row", gap: 16, marginTop: 12 },
-
-  linkText: { color: "#93c5fd", textDecorationLine: "underline", fontSize: 14 },
+  inlineLink: { color: "#93c5fd", textDecorationLine: "underline", fontSize: 14 },
 
   section: { backgroundColor: "#0f1623", paddingVertical: 40 },
   columns: {
@@ -138,6 +120,7 @@ const styles = StyleSheet.create({
   },
   bottomCtaTitle: { color: "#e2e8f0", fontWeight: "800", fontSize: 20 },
   bottomCtaRow: { flexDirection: "row", gap: 12, alignItems: "center" },
+  bottomLink: { color: "#cbd5e1", fontSize: 14, textDecorationLine: "underline" },
   dot: { color: "#475569", fontSize: 18, marginHorizontal: 4, marginTop: -2 },
   copy: { color: "#64748b", fontSize: 12, marginTop: 6 },
 });

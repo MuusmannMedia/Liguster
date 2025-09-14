@@ -1,12 +1,21 @@
 // app/index.web.tsx
-import { Link } from "expo-router";
 import React, { useEffect } from "react";
 import { Image, ScrollView, StyleSheet, Text, View } from "react-native";
 import LogoNEG from "../assets/images/Liguster-logo-NEG.png";
 
+// 100% statisk <a>-link så det virker uden JS/hydration
+function ALink(props: React.PropsWithChildren<{ href: string; style?: any }>) {
+  return (
+    // @ts-ignore web-only <a>
+    <a href={props.href} style={{ textDecoration: "none" }}>
+      <Text style={props.style}>{props.children}</Text>
+    </a>
+  );
+}
+
 export default function WebLanding() {
   useEffect(() => {
-    // Debug – kan fjernes
+    // Debug – fjern når du vil
     console.log("EXPO_PUBLIC_SUPABASE_URL:", process.env.EXPO_PUBLIC_SUPABASE_URL);
     console.log(
       "EXPO_PUBLIC_SUPABASE_ANON_KEY:",
@@ -31,9 +40,9 @@ export default function WebLanding() {
             </Text>
 
             <View style={styles.inlineLinks}>
-              <Link href="/privacy" style={styles.inlineLink} accessibilityRole="link">
+              <ALink href="/privacy" style={styles.inlineLink}>
                 Privacy Policy
-              </Link>
+              </ALink>
             </View>
           </View>
 
@@ -65,21 +74,21 @@ export default function WebLanding() {
       <View style={styles.bottomCta}>
         <Text style={styles.bottomCtaTitle}>Klar til at logge ind?</Text>
         <View style={styles.bottomCtaRow}>
-          {/* Brug /LoginScreen fordi filen hedder LoginScreen.web.tsx hos dig */}
-          <Link href="/LoginScreen" style={styles.bottomLink} accessibilityRole="link">
+          {/* Login filen hedder LoginScreen.web.tsx → rute er /LoginScreen (case-sensitivt på Vercel) */}
+          <ALink href="/LoginScreen" style={styles.bottomLink}>
             Log ind
-          </Link>
+          </ALink>
           <Text style={styles.dot}>·</Text>
-          <Link href="/privacy" style={styles.bottomLink} accessibilityRole="link">
+          <ALink href="/privacy" style={styles.bottomLink}>
             Privacy Policy
-          </Link>
+          </ALink>
         </View>
 
         <View style={{ marginTop: 8 }}>
-          {/* Nabolag er lowercase for at matche case-sensitive ruter på Vercel */}
-          <Link href="/nabolag" style={styles.bottomLink} accessibilityRole="link">
+          {/* Din side-fil hedder Nabolag.web.tsx → ruten er /Nabolag (med stort N) */}
+          <ALink href="/Nabolag" style={styles.bottomLink}>
             Se opslag uden login
-          </Link>
+          </ALink>
         </View>
 
         <Text style={styles.copy}>© {new Date().getFullYear()} Liguster</Text>

@@ -5,7 +5,7 @@ import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 const LINKS = [
   { label: "Nabolag",     href: "/Nabolag" },
-  { label: "Forening",    href: "/forening" },   // justér hvis din rute hedder noget andet
+  { label: "Forening",    href: "/forening" },   // tilpas hvis din fil/rute hedder andet
   { label: "Beskeder",    href: "/Beskeder" },
   { label: "Mine opslag", href: "/MineOpslag" },
   { label: "Mig",         href: "/Mig" },
@@ -21,7 +21,6 @@ function TopNav() {
           {LINKS.map((l) => {
             const active =
               pathname === l.href ||
-              // også aktiv hvis vi er på en under-side (fx /forening/123)
               (l.href !== "/Nabolag" && pathname?.startsWith(l.href));
             return (
               <Link key={l.href} href={l.href} asChild>
@@ -91,8 +90,5 @@ const styles = StyleSheet.create({
   linkText: { color: "#cbd5e1", fontWeight: "700", fontSize: 14 },
   linkTextActive: { color: "#fff" },
 
-  content: {
-    // lidt luft under menuen
-    paddingTop: 14,
-  },
+  content: { paddingTop: 14 },
 });

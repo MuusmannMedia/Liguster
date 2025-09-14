@@ -3,19 +3,34 @@ import React, { useEffect } from "react";
 import { Image, ScrollView, StyleSheet, Text, View } from "react-native";
 import LogoNEG from "../assets/images/Liguster-logo-NEG.png";
 
-// 100% statisk <a>-link så det virker uden JS/hydration
-function ALink(props: React.PropsWithChildren<{ href: string; style?: any }>) {
+/** Ren <a> uden RN <Text> indeni — klik virker selv uden JS/hydration */
+function ALink({
+  href,
+  children,
+  style,
+}: {
+  href: string;
+  children: React.ReactNode;
+  style?: React.CSSProperties;
+}) {
   return (
-    // @ts-ignore web-only <a>
-    <a href={props.href} style={{ textDecoration: "none" }}>
-      <Text style={props.style}>{props.children}</Text>
+    <a
+      href={href}
+      style={{
+        color: "#93c5fd",
+        textDecoration: "underline",
+        cursor: "pointer",
+        ...(style || {}),
+      }}
+    >
+      {children}
     </a>
   );
 }
 
 export default function WebLanding() {
   useEffect(() => {
-    // Debug – fjern når du vil
+    // Debug (valgfrit)
     console.log("EXPO_PUBLIC_SUPABASE_URL:", process.env.EXPO_PUBLIC_SUPABASE_URL);
     console.log(
       "EXPO_PUBLIC_SUPABASE_ANON_KEY:",
@@ -40,9 +55,7 @@ export default function WebLanding() {
             </Text>
 
             <View style={styles.inlineLinks}>
-              <ALink href="/privacy" style={styles.inlineLink}>
-                Privacy Policy
-              </ALink>
+              <ALink href="/privacy">Privacy Policy</ALink>
             </View>
           </View>
 
@@ -55,18 +68,9 @@ export default function WebLanding() {
       {/* Features */}
       <View style={styles.section}>
         <View style={styles.columns}>
-          <Feature
-            title="Opslag & hjælp"
-            text="Efterlys hjælp, tilbyd din hånd eller del ting væk. Alt samlet i nabolaget."
-          />
-          <Feature
-            title="Foreninger"
-            text="Medlemslister, kalender, opslag og beskeder – nemt for bestyrelsen."
-          />
-          <Feature
-            title="Beskeder"
-            text="Hold samtalen i appen – både 1:1 og i grupper."
-          />
+          <Feature title="Opslag & hjælp" text="Efterlys hjælp, tilbyd din hånd eller del ting væk. Alt samlet i nabolaget." />
+          <Feature title="Foreninger" text="Medlemslister, kalender, opslag og beskeder – nemt for bestyrelsen." />
+          <Feature title="Beskeder" text="Hold samtalen i appen – både 1:1 og i grupper." />
         </View>
       </View>
 
@@ -74,21 +78,13 @@ export default function WebLanding() {
       <View style={styles.bottomCta}>
         <Text style={styles.bottomCtaTitle}>Klar til at logge ind?</Text>
         <View style={styles.bottomCtaRow}>
-          {/* Login filen hedder LoginScreen.web.tsx → rute er /LoginScreen (case-sensitivt på Vercel) */}
-          <ALink href="/LoginScreen" style={styles.bottomLink}>
-            Log ind
-          </ALink>
+          <ALink href="/LoginScreen">Log ind</ALink>
           <Text style={styles.dot}>·</Text>
-          <ALink href="/privacy" style={styles.bottomLink}>
-            Privacy Policy
-          </ALink>
+          <ALink href="/privacy">Privacy Policy</ALink>
         </View>
 
         <View style={{ marginTop: 8 }}>
-          {/* Din side-fil hedder Nabolag.web.tsx → ruten er /Nabolag (med stort N) */}
-          <ALink href="/Nabolag" style={styles.bottomLink}>
-            Se opslag uden login
-          </ALink>
+          <ALink href="/Nabolag">Se opslag uden login</ALink>
         </View>
 
         <Text style={styles.copy}>© {new Date().getFullYear()} Liguster</Text>
@@ -109,73 +105,37 @@ function Feature({ title, text }: { title: string; text: string }) {
 const styles = StyleSheet.create({
   page: { backgroundColor: "#0f1623" },
 
-  /* Hero */
   hero: { paddingVertical: 56, backgroundColor: "#0f1623" },
   heroInner: {
-    maxWidth: 1200,
-    width: "100%",
-    alignSelf: "center",
-    paddingHorizontal: 24,
-    gap: 32,
-    flexDirection: "row",
-    flexWrap: "wrap",
+    maxWidth: 1200, width: "100%", alignSelf: "center",
+    paddingHorizontal: 24, gap: 32, flexDirection: "row", flexWrap: "wrap",
   },
   heroCol: { flex: 1, minWidth: 300, justifyContent: "center" },
   heroTitle: { color: "white", fontSize: 42, fontWeight: "800", marginBottom: 12 },
-  heroSubtitle: {
-    color: "#cbd5e1",
-    fontSize: 18,
-    lineHeight: 26,
-    marginBottom: 16,
-    maxWidth: 560,
-  },
+  heroSubtitle: { color: "#cbd5e1", fontSize: 18, lineHeight: 26, marginBottom: 16, maxWidth: 560 },
   heroNote: { color: "#94a3b8", fontSize: 13, marginTop: 10 },
   heroImage: { width: "100%", height: 320 },
 
   inlineLinks: { flexDirection: "row", gap: 16, marginTop: 12 },
-  inlineLink: { color: "#93c5fd", textDecorationLine: "underline", fontSize: 14 },
 
-  /* Features */
   section: { backgroundColor: "#0f1623", paddingVertical: 40 },
   columns: {
-    maxWidth: 1200,
-    width: "100%",
-    alignSelf: "center",
-    paddingHorizontal: 24,
-    gap: 24,
-    flexDirection: "row",
-    flexWrap: "wrap",
+    maxWidth: 1200, width: "100%", alignSelf: "center",
+    paddingHorizontal: 24, gap: 24, flexDirection: "row", flexWrap: "wrap",
   },
   feature: {
-    flex: 1,
-    minWidth: 260,
-    backgroundColor: "#111827",
-    borderWidth: 1,
-    borderColor: "#1f2937",
-    padding: 20,
-    borderRadius: 16,
+    flex: 1, minWidth: 260, backgroundColor: "#111827", borderWidth: 1, borderColor: "#1f2937",
+    padding: 20, borderRadius: 16,
   },
-  featureTitle: {
-    color: "#e2e8f0",
-    fontSize: 18,
-    fontWeight: "700",
-    marginBottom: 6,
-  },
+  featureTitle: { color: "#e2e8f0", fontSize: 18, fontWeight: "700", marginBottom: 6 },
   featureText: { color: "#94a3b8", lineHeight: 20 },
 
-  /* Bottom CTA */
   bottomCta: {
-    backgroundColor: "#0b1220",
-    borderTopWidth: 1,
-    borderTopColor: "#1f2937",
-    paddingVertical: 36,
-    paddingHorizontal: 24,
-    alignItems: "center",
-    gap: 8,
+    backgroundColor: "#0b1220", borderTopWidth: 1, borderTopColor: "#1f2937",
+    paddingVertical: 36, paddingHorizontal: 24, alignItems: "center", gap: 8,
   },
   bottomCtaTitle: { color: "#e2e8f0", fontWeight: "800", fontSize: 20 },
   bottomCtaRow: { flexDirection: "row", gap: 12, alignItems: "center" },
-  bottomLink: { color: "#cbd5e1", fontSize: 14, textDecorationLine: "underline" },
   dot: { color: "#475569", fontSize: 18, marginHorizontal: 4, marginTop: -2 },
   copy: { color: "#64748b", fontSize: 12, marginTop: 6 },
 });

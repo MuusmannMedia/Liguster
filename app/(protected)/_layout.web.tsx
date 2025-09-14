@@ -1,6 +1,10 @@
 // app/(protected)/_layout.web.tsx
-import { Stack } from "expo-router";
+import { Slot } from "expo-router";
 
+/**
+ * Ultra-minimalt layout til web.
+ * Viser bare børnene (ruterne) – ingen Stack, ingen header.
+ */
 export default function ProtectedWebLayout() {
-  return <Stack screenOptions={{ headerShown: false }} />;
+  return <Slot />;
 }

@@ -1,0 +1,29 @@
+{
+  "redirects": [
+    {
+      "source": "/Nabolag",
+      "destination": "/nabolag",
+      "permanent": true
+    },
+    {
+      "source": "/Forening",
+      "destination": "/forening",
+      "permanent": true
+    },
+    {
+      "source": "/Beskeder",
+      "destination": "/beskeder",
+      "permanent": true
+    },
+    {
+      "source": "/MineOpslag",
+      "destination": "/mineopslag",
+      "permanent": true
+    },
+    {
+      "source": "/Mig",
+      "destination": "/mig",
+      "permanent": true
+    }
+  ]
+}

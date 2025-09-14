@@ -1,5 +1,5 @@
 {
-  "name": "liguster-clean",
+  "name": "liguster",
   "main": "expo-router/entry",
   "version": "1.0.0",
   "scripts": {
@@ -8,7 +8,8 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "web-build": "expo export --platform web"
   },
   "dependencies": {
     "@expo/metro-runtime": "~6.1.2",

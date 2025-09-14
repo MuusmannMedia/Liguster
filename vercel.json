@@ -1,20 +1,5 @@
 {
   "buildCommand": "npx expo export --platform web",
   "outputDirectory": "dist",
-
-  "redirects": [
-    { "source": "/Nabolag(/.*)?",   "destination": "/nabolag$1",    "permanent": true },
-    { "source": "/Forening(/.*)?",  "destination": "/forening$1",   "permanent": true },
-    { "source": "/Beskeder(/.*)?",  "destination": "/beskeder$1",   "permanent": true },
-    { "source": "/MineOpslag(/.*)?","destination": "/mineopslag$1", "permanent": true },
-    { "source": "/Mig(/.*)?",       "destination": "/mig$1",        "permanent": true }
-  ],
-
-  "rewrites": [
-    { "source": "/privacy",  "destination": "/index.html" },
-    { "source": "/privacy/", "destination": "/index.html" },
-    { "source": "/(.*)",     "destination": "/index.html" }
-  ],
-
   "trailingSlash": true
 }

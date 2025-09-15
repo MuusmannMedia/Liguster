@@ -1,134 +1,191 @@
-// app/(public)/LoginScreen.web.tsx
-import { Link, router } from "expo-router";
+// app/(public)/LoginScreen.native.tsx
+import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
-import { StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import {
+  Alert,
+  Keyboard,
+  KeyboardAvoidingView,
+  Linking,
+  Platform,
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  TouchableWithoutFeedback,
+  View,
+} from "react-native";
 import { supabase } from "../../utils/supabase";
 
-export default function LoginScreenWeb() {
-  const [email, setEmail] = useState("");
-  const [sending, setSending] = useState(false);
-  const didRedirect = useRef(false);
+export const options = { headerShown: false };
 
-  // Hvis allerede logget ind -> send til Nabolag
+export default function LoginScreenNative() {
+  const router = useRouter();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const passwordRef = useRef<TextInput>(null);
+
   useEffect(() => {
     let mounted = true;
     (async () => {
       const { data } = await supabase.auth.getSession();
-      if (mounted && data.session && !didRedirect.current) {
-        didRedirect.current = true;
-        router.replace("/Nabolag");
+      if (mounted && data.session) {
+        router.replace("/(protected)/Nabolag");
       }
     })();
+    return () => { mounted = false; };
+  }, [router]);
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_evt, session) => {
-      if (session && !didRedirect.current) {
-        didRedirect.current = true;
-        router.replace("/Nabolag");
-      }
-    });
+  const goHome = () => router.replace("/");
 
-    return () => {
-      mounted = false;
-      sub.subscription.unsubscribe();
-    };
-  }, []);
-
-  const sendMagicLink = async () => {
+  const onLogin = async () => {
     const mail = email.trim();
-    if (!mail) return;
+    const pass = password.trim();
+
+    if (!mail || !pass) {
+      Alert.alert("Fejl", "Udfyld både e-mail og password.");
+      return;
+    }
+    if (loading) return;
+
     try {
-      setSending(true);
-      const { error } = await supabase.auth.signInWithOtp({
+      setLoading(true);
+      const { error } = await supabase.auth.signInWithPassword({
         email: mail,
-        options: { emailRedirectTo: `${window.location.origin}/LoginScreen` },
+        password: pass,
       });
       if (error) throw error;
-      alert("Tjek din mail for et login-link.");
+      router.replace("/(protected)/Nabolag");
     } catch (e: any) {
-      alert(e?.message ?? "Kunne ikke sende login-link.");
+      Alert.alert("Login fejlede", e?.message ?? "Prøv igen.");
     } finally {
-      setSending(false);
+      setLoading(false);
     }
   };
 
+  const onResetPassword = () => {
+    // Åbn websitets reset password side
+    Linking.openURL("https://liguster-app.dk/reset-password");
+  };
+
   return (
-    <View style={styles.page}>
-      <View style={styles.card}>
-        <Text style={styles.h1}>Log ind</Text>
-        <Text style={styles.copy}>
-          Indtast din e-mail – så sender vi et login-link.
-        </Text>
+    <View style={styles.root}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.select({ ios: "padding", android: "height" })}
+      >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+          <SafeAreaView style={styles.safe}>
+            <TouchableOpacity
+              style={styles.backIcon}
+              onPress={goHome}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Text style={styles.backIconText}>‹</Text>
+            </TouchableOpacity>
 
-        <TextInput
-          placeholder="din@email.dk"
-          placeholderTextColor="#94a3b8"
-          keyboardType="email-address"
-          autoCapitalize="none"
-          autoComplete="email"
-          value={email}
-          onChangeText={setEmail}
-          style={styles.input}
-        />
+            <View style={styles.centered}>
+              <Text style={styles.title}>Log ind</Text>
 
-        <TouchableOpacity
-          onPress={sendMagicLink}
-          disabled={sending || !email.trim()}
-          style={[styles.btn, (!email.trim() || sending) && { opacity: 0.6 }]}
-        >
-          <Text style={styles.btnText}>{sending ? "Sender…" : "Send login-link"}</Text>
-        </TouchableOpacity>
+              <TextInput
+                style={styles.input}
+                placeholder="din@email.dk"
+                placeholderTextColor="#999"
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType="email-address"
+                textContentType="username"
+                value={email}
+                onChangeText={setEmail}
+                returnKeyType="next"
+                onSubmitEditing={() => passwordRef.current?.focus()}
+                blurOnSubmit={false}
+              />
 
-        <View style={styles.row}>
-          <Link href="/privacy" style={styles.link}>
-            Privacy
-          </Link>
-          <Text style={{ color: "#64748b" }}>·</Text>
-          <TouchableOpacity onPress={() => router.replace("/Nabolag")}>
-            <Text style={styles.link}>Se opslag uden login</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+              <TextInput
+                ref={passwordRef}
+                style={styles.input}
+                placeholder="Password"
+                placeholderTextColor="#999"
+                secureTextEntry
+                autoCapitalize="none"
+                autoCorrect={false}
+                textContentType="password"
+                value={password}
+                onChangeText={setPassword}
+                returnKeyType="go"
+                onSubmitEditing={onLogin}
+              />
+
+              <TouchableOpacity
+                style={[styles.button, loading && { opacity: 0.6 }]}
+                onPress={onLogin}
+                disabled={loading}
+              >
+                <Text style={styles.buttonText}>
+                  {loading ? "Logger ind…" : "LOG IND"}
+                </Text>
+              </TouchableOpacity>
+
+              {/* Reset password link */}
+              <TouchableOpacity onPress={onResetPassword} style={{ marginTop: 14 }}>
+                <Text style={styles.link}>Glemt password? Nulstil her</Text>
+              </TouchableOpacity>
+            </View>
+          </SafeAreaView>
+        </TouchableWithoutFeedback>
+      </KeyboardAvoidingView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  page: {
+  root: { flex: 1, backgroundColor: "#171C22" },
+  safe: { flex: 1 },
+
+  centered: {
     flex: 1,
-    backgroundColor: "#0f1623",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 20,
+  },
+
+  backIcon: {
+    position: "absolute",
+    top: 12,
+    left: 12,
+    zIndex: 10,
+    width: 36,
+    height: 44,
+    justifyContent: "center",
+    alignItems: "flex-start",
+  },
+  backIconText: { fontSize: 30, color: "#fff" },
+
+  title: { color: "#fff", fontSize: 28, fontWeight: "700", marginBottom: 16 },
+
+  input: {
+    backgroundColor: "#fff",
+    width: 260,
+    height: 48,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    marginBottom: 16,
+    fontSize: 16,
+  },
+
+  button: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    width: 200,
+    height: 52,
     alignItems: "center",
     justifyContent: "center",
-    padding: 24,
+    marginTop: 8,
+    elevation: 1,
   },
-  card: {
-    width: "100%",
-    maxWidth: 440,
-    backgroundColor: "#111827",
-    borderWidth: 1,
-    borderColor: "#1f2937",
-    borderRadius: 16,
-    padding: 20,
-    gap: 12,
-  },
-  h1: { color: "#e5e7eb", fontSize: 22, fontWeight: "800" },
-  copy: { color: "#94a3b8" },
-  input: {
-    backgroundColor: "#0b1220",
-    borderWidth: 1,
-    borderColor: "#233244",
-    color: "#e5e7eb",
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  btn: {
-    backgroundColor: "#22c55e",
-    borderRadius: 10,
-    paddingVertical: 12,
-    alignItems: "center",
-    marginTop: 4,
-  },
-  btnText: { color: "#0b1220", fontWeight: "800" },
-  row: { marginTop: 8, flexDirection: "row", gap: 10, alignSelf: "center" },
-  link: { color: "#93c5fd", textDecorationLine: "underline" },
+  buttonText: { color: "#171C22", fontSize: 16, fontWeight: "700", letterSpacing: 1 },
+
+  link: { color: "#93c5fd", textDecorationLine: "underline", fontSize: 14 },
 });

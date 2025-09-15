@@ -1,6 +1,2 @@
-// app/(public)/reset-password.tsx
+// Sørger for at Expo Router inkluderer ruten i statisk eksport
 export { default } from "./reset-password.web";
-
-// (valgfrit) hvis du havde 'export const options = {...}' i web-filen,
-// kan du også gen-eksportere den:
-// export { options } from "./reset-password.web";

@@ -2,7 +2,6 @@
   "buildCommand": "npx expo export --platform web",
   "outputDirectory": "dist",
   "trailingSlash": true,
-
   "rewrites": [
     { "source": "/privacy",         "destination": "/index.html" },
     { "source": "/privacy/",        "destination": "/index.html" },

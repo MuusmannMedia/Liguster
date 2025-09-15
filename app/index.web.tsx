@@ -1,36 +1,10 @@
-// app/index.web.tsx
 import React, { useEffect } from "react";
-import { Image, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image, StyleSheet, Text, View } from "react-native";
 import LogoNEG from "../assets/images/Liguster-logo-NEG.png";
-
-/** Ren <a> uden RN <Text> indeni — klik virker selv uden JS/hydration */
-function ALink({
-  href,
-  children,
-  style,
-}: {
-  href: string;
-  children: React.ReactNode;
-  style?: React.CSSProperties;
-}) {
-  return (
-    <a
-      href={href}
-      style={{
-        color: "#93c5fd",
-        textDecoration: "underline",
-        cursor: "pointer",
-        ...(style || {}),
-      }}
-    >
-      {children}
-    </a>
-  );
-}
 
 export default function WebLanding() {
   useEffect(() => {
-    // Debug (valgfrit)
+    // Debug – kan fjernes
     console.log("EXPO_PUBLIC_SUPABASE_URL:", process.env.EXPO_PUBLIC_SUPABASE_URL);
     console.log(
       "EXPO_PUBLIC_SUPABASE_ANON_KEY:",
@@ -39,7 +13,13 @@ export default function WebLanding() {
   }, []);
 
   return (
-    <ScrollView contentContainerStyle={styles.page}>
+    <View style={styles.page}>
+      {/* Lille inline CSS kun til rene <a>-links */}
+      <style>{`
+        .rlink{ color:#93c5fd; text-decoration:underline; font-size:14px }
+        .rlink-lg{ color:#cbd5e1; text-decoration:underline; font-size:14px }
+      `}</style>
+
       {/* Hero */}
       <View style={styles.hero}>
         <View style={styles.heroInner}>
@@ -55,7 +35,8 @@ export default function WebLanding() {
             </Text>
 
             <View style={styles.inlineLinks}>
-              <ALink href="/privacy">Privacy Policy</ALink>
+              {/* RENE <a> – fuld reload virker også før hydration */}
+              <a className="rlink" href="/privacy">Privacy Policy</a>
             </View>
           </View>
 
@@ -74,22 +55,22 @@ export default function WebLanding() {
         </View>
       </View>
 
-      {/* Bottom CTA */}
+      {/* Bottom CTA – brug rene <a> */}
       <View style={styles.bottomCta}>
         <Text style={styles.bottomCtaTitle}>Klar til at logge ind?</Text>
         <View style={styles.bottomCtaRow}>
-          <ALink href="/LoginScreen">Log ind</ALink>
+          <a className="rlink-lg" href="/LoginScreen">Log ind</a>
           <Text style={styles.dot}>·</Text>
-          <ALink href="/privacy">Privacy Policy</ALink>
+          <a className="rlink-lg" href="/privacy">Privacy Policy</a>
         </View>
 
         <View style={{ marginTop: 8 }}>
-          <ALink href="/Nabolag">Se opslag uden login</ALink>
+          <a className="rlink-lg" href="/Nabolag">Se opslag uden login</a>
         </View>
 
         <Text style={styles.copy}>© {new Date().getFullYear()} Liguster</Text>
       </View>
-    </ScrollView>
+    </View>
   );
 }
 
@@ -103,7 +84,13 @@ function Feature({ title, text }: { title: string; text: string }) {
 }
 
 const styles = StyleSheet.create({
-  page: { backgroundColor: "#0f1623" },
+  page: {
+    backgroundColor: "#0f1623",
+    minHeight: "100vh",
+    // vigtigt så intet blokerer klik:
+    // @ts-ignore
+    pointerEvents: "auto",
+  },
 
   hero: { paddingVertical: 56, backgroundColor: "#0f1623" },
   heroInner: {

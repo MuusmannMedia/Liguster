@@ -1,13 +1,14 @@
+// app/_layout.web.tsx
 import { Link, router, Slot } from "expo-router";
 import Head from "expo-router/head";
 import React, { useCallback, useEffect, useState } from "react";
 import {
-    Platform,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    useWindowDimensions,
-    View,
+  Platform,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  useWindowDimensions,
+  View,
 } from "react-native";
 import { useSession } from "../../hooks/useSession";
 import { supabase } from "../../utils/supabase";
@@ -19,14 +20,12 @@ export default function ProtectedWebLayout() {
   const isMobile = width < 720;
   const [menuOpen, setMenuOpen] = useState(false);
 
-  // ❗ Hårdt auth-gate: hvis ikke logget ind → til login
   useEffect(() => {
     if (!loading && !isAuthed) {
       router.replace("/LoginScreen");
     }
   }, [loading, isAuthed]);
 
-  // Luk menu ved resize/navigation
   useEffect(() => setMenuOpen(false), [isMobile]);
 
   const signOut = useCallback(async () => {
@@ -50,9 +49,56 @@ export default function ProtectedWebLayout() {
 
       {/* Topbar */}
       <View style={styles.nav}>
-        <TouchableOpacity onPress={() => router.push("/(protected)/Nabolag")}>
-          <Text style={styles.brand}>Liguster</Text>
-        </TouchableOpacity>
+        {/* === BRAND LOGO (web) === */}
+        {/* Vi bruger et rent <a>/<img> så vi er helt sikre på rendering i web-runtime */}
+        {/* Henter fra /public/liguster-logo-website-clean.png */}
+        {
+          // @ts-ignore – vi er i .web.tsx så <a> og <img> er ok
+          <a
+            href="/Nabolag"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              textDecoration: "none",
+              lineHeight: 0,
+            }}
+            aria-label="Liguster – Nabolag"
+          >
+            {
+              // @ts-ignore
+              <img
+                src="/liguster-logo-website-clean.png"
+                alt="Liguster"
+                height={22}
+                style={{ display: "block" }}
+                onError={(e: any) => {
+                  const el = e.currentTarget as HTMLImageElement;
+                  if (!el.dataset.triedFallback) {
+                    el.dataset.triedFallback = "1";
+                    el.src = "/Liguster-logo-website-clean.png"; // fallback-case
+                  } else {
+                    // sidste udvej: vis tekst
+                    el.style.display = "none";
+                    const txt = el.nextElementSibling as HTMLSpanElement | null;
+                    if (txt) txt.style.display = "inline-block";
+                  }
+                }}
+              />
+            }
+            <span
+              style={{
+                display: "none",
+                color: "#e2e8f0",
+                fontWeight: 800,
+                letterSpacing: 0.5,
+                fontSize: 16,
+              }}
+            >
+              Liguster
+            </span>
+          </a>
+        }
 
         <View style={styles.right}>
           {/* Desktop links */}
@@ -93,7 +139,7 @@ export default function ProtectedWebLayout() {
         </View>
       </View>
 
-      {/* Indhold: vis først når vi ved om man er logget ind */}
+      {/* Indhold */}
       <View style={styles.content}>
         {!loading && isAuthed ? <Slot /> : null}
       </View>
@@ -110,7 +156,7 @@ const styles = StyleSheet.create({
     alignItems: "center", justifyContent: "space-between",
     zIndex: 20,
   },
-  brand: { color: "#fff", fontSize: 18, fontWeight: "800" },
+  brand: { color: "#fff", fontSize: 18, fontWeight: "800" }, // (beholdt hvis du vil rulle tilbage)
   right: { flexDirection: "row", alignItems: "center", gap: 16 },
   link: { color: "#cbd5e1", fontSize: 14, textDecorationLine: "none" },
   cta: { borderWidth: 1, borderColor: "#334155", borderRadius: 10, paddingVertical: 8, paddingHorizontal: 12 },

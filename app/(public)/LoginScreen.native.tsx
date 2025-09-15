@@ -1,21 +1,20 @@
 // app/(public)/LoginScreen.native.tsx
 import { useRouter } from "expo-router";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useRef, useState } from "react";
 import {
-  Alert,
-  Keyboard,
-  KeyboardAvoidingView,
-  Linking,
-  Platform,
-  SafeAreaView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  TouchableWithoutFeedback,
-  View,
+    Alert,
+    Keyboard,
+    KeyboardAvoidingView,
+    Platform,
+    SafeAreaView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    TouchableWithoutFeedback,
+    View,
 } from "react-native";
-import { supabase } from "../../utils/supabase";
+import { supabase } from "../../utils/supabase"; // <-- KORREKT STI (to niveauer op)
 
 export const options = { headerShown: false };
 
@@ -26,47 +25,24 @@ export default function LoginScreenNative() {
   const [loading, setLoading] = useState(false);
   const passwordRef = useRef<TextInput>(null);
 
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      const { data } = await supabase.auth.getSession();
-      if (mounted && data.session) {
-        router.replace("/(protected)/Nabolag");
-      }
-    })();
-    return () => { mounted = false; };
-  }, [router]);
-
   const goHome = () => router.replace("/");
 
   const onLogin = async () => {
-    const mail = email.trim();
-    const pass = password.trim();
-
-    if (!mail || !pass) {
-      Alert.alert("Fejl", "Udfyld både e-mail og password.");
+    if (!email || !password) {
+      Alert.alert("Fejl", "Udfyld både email og password.");
       return;
     }
-    if (loading) return;
+    setLoading(true);
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    setLoading(false);
 
-    try {
-      setLoading(true);
-      const { error } = await supabase.auth.signInWithPassword({
-        email: mail,
-        password: pass,
-      });
-      if (error) throw error;
-      router.replace("/(protected)/Nabolag");
-    } catch (e: any) {
-      Alert.alert("Login fejlede", e?.message ?? "Prøv igen.");
-    } finally {
-      setLoading(false);
+    if (error) {
+      Alert.alert("Login fejlede", error.message);
+      return;
     }
-  };
 
-  const onResetPassword = () => {
-    // Åbn websitets reset password side
-    Linking.openURL("https://liguster-app.dk/reset-password");
+    // Efter login -> ind i den beskyttede gruppe på native
+    router.replace("/(protected)/Nabolag");
   };
 
   return (
@@ -77,6 +53,7 @@ export default function LoginScreenNative() {
       >
         <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
           <SafeAreaView style={styles.safe}>
+            {/* Tilbage */}
             <TouchableOpacity
               style={styles.backIcon}
               onPress={goHome}
@@ -85,15 +62,15 @@ export default function LoginScreenNative() {
               <Text style={styles.backIconText}>‹</Text>
             </TouchableOpacity>
 
+            {/* Formular */}
             <View style={styles.centered}>
               <Text style={styles.title}>Log ind</Text>
 
               <TextInput
                 style={styles.input}
-                placeholder="din@email.dk"
+                placeholder="Email"
                 placeholderTextColor="#999"
                 autoCapitalize="none"
-                autoCorrect={false}
                 keyboardType="email-address"
                 textContentType="username"
                 value={email}
@@ -109,8 +86,6 @@ export default function LoginScreenNative() {
                 placeholder="Password"
                 placeholderTextColor="#999"
                 secureTextEntry
-                autoCapitalize="none"
-                autoCorrect={false}
                 textContentType="password"
                 value={password}
                 onChangeText={setPassword}
@@ -118,19 +93,8 @@ export default function LoginScreenNative() {
                 onSubmitEditing={onLogin}
               />
 
-              <TouchableOpacity
-                style={[styles.button, loading && { opacity: 0.6 }]}
-                onPress={onLogin}
-                disabled={loading}
-              >
-                <Text style={styles.buttonText}>
-                  {loading ? "Logger ind…" : "LOG IND"}
-                </Text>
-              </TouchableOpacity>
-
-              {/* Reset password link */}
-              <TouchableOpacity onPress={onResetPassword} style={{ marginTop: 14 }}>
-                <Text style={styles.link}>Glemt password? Nulstil her</Text>
+              <TouchableOpacity style={styles.button} onPress={onLogin} disabled={loading}>
+                <Text style={styles.buttonText}>{loading ? "Logger ind…" : "LOG IND"}</Text>
               </TouchableOpacity>
             </View>
           </SafeAreaView>
@@ -186,6 +150,4 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   buttonText: { color: "#171C22", fontSize: 16, fontWeight: "700", letterSpacing: 1 },
-
-  link: { color: "#93c5fd", textDecorationLine: "underline", fontSize: 14 },
 });

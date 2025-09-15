@@ -1,34 +1,65 @@
 // app/(public)/index.web.tsx
-export default function TestLanding() {
+import { useRouter } from "expo-router";
+import React from "react";
+import {
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+
+import LogoNEG from "../../assets/images/Liguster-logo-NEG.png";
+
+export default function IndexWeb() {
+  const router = useRouter();
+
   return (
-    <div style={styles.page}>
-      <h1 style={styles.h1}>🚧 ABSOLUT TEST 🚧</h1>
-      <p style={styles.p}>Denne side kommer fra <b>app/(public)/index.web.tsx</b>.</p>
+    <ScrollView style={styles.root} contentContainerStyle={styles.container}>
+      <Image source={LogoNEG} style={styles.heroImage} resizeMode="contain" />
 
-      <a href="https://www.google.com" style={styles.link}>→ Gå til Google</a>
+      <Text style={styles.title}>Velkommen til Liguster</Text>
+      <Text style={styles.subtitle}>
+        Din lokale platform for fællesskab, hjælp og genbrug 🌱
+      </Text>
 
-      <p style={styles.note}>
-        Ser du stadig den gamle hero-side, har du en anden <code>index</code>-route i projektet
-        som “vinder”, eller bygget artefakt er ikke opdateret.
-      </p>
-    </div>
+      <View style={styles.buttons}>
+        <TouchableOpacity
+          accessibilityRole="button"
+          style={styles.btn}
+          onPress={() => router.push("/LoginScreen")}
+        >
+          <Text style={styles.btnText}>Log ind</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          accessibilityRole="button"
+          style={[styles.btn, styles.btnSecondary]}
+          onPress={() => router.push("/OpretBruger")}
+        >
+          <Text style={styles.btnText}>Opret bruger</Text>
+        </TouchableOpacity>
+      </View>
+    </ScrollView>
   );
 }
 
-const styles: Record<string, React.CSSProperties> = {
-  page: {
-    minHeight: "100vh",
-    background: "#fff",
-    color: "#111",
-    display: "flex",
-    flexDirection: "column",
+const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: "#0f1623" },
+  container: {
+    flexGrow: 1,
     alignItems: "center",
     justifyContent: "center",
-    fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
-    gap: "20px",
+    padding: 20,
   },
-  h1: { fontSize: "48px", margin: 0 },
-  p: { fontSize: "20px", margin: 0, textAlign: "center" },
-  link: { fontSize: "24px", fontWeight: 700, color: "#0b57d0", textDecoration: "underline" },
-  note: { marginTop: "40px", fontSize: "16px", color: "#666", maxWidth: 720, textAlign: "center" },
-};
+  heroImage: { width: 240, height: 240, marginBottom: 30 },
+  title: { fontSize: 28, fontWeight: "800", color: "#fff", marginBottom: 10, textAlign: "center" },
+  subtitle: {
+    fontSize: 16, color: "#cbd5e1", marginBottom: 30, textAlign: "center", maxWidth: 500,
+  },
+  buttons: { flexDirection: "row", gap: 16 },
+  btn: { backgroundColor: "#ffffff", paddingHorizontal: 22, paddingVertical: 14, borderRadius: 10 },
+  btnSecondary: { backgroundColor: "#94a3b8" },
+  btnText: { color: "#0f1623", fontWeight: "700", fontSize: 16 },
+});

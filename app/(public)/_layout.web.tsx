@@ -1,71 +1,71 @@
-// app/(public)/_layout.web.tsx
-import { Slot } from "expo-router";
-import React, { useEffect, useState } from "react";
+import { Link, router, Slot } from "expo-router";
+import Head from "expo-router/head";
+import React from "react";
+import { StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from "react-native";
+import { useSession } from "../../hooks/useSession"; // <- VIGTIG: to niveaer op
 
 export default function PublicWebLayout() {
-  const [isMobile, setIsMobile] = useState<boolean>(() => {
-    if (typeof window === "undefined") return false;
-    return window.innerWidth <= 719;
-  });
-
-  useEffect(() => {
-    // Make absolutely sure nothing is swallowing clicks:
-    if (typeof document !== "undefined") {
-      const html = document.documentElement;
-      const body = document.body;
-      const root = (document.getElementById("__next") || body) as HTMLElement;
-
-      [html, body, root].forEach((el) => {
-        el.style.pointerEvents = "auto";
-        el.style.overflow = "auto";
-      });
-    }
-
-    if (typeof window === "undefined") return;
-    const mq = window.matchMedia("(max-width: 719px)");
-    const handler = (e: MediaQueryListEvent | MediaQueryList) =>
-      setIsMobile("matches" in e ? e.matches : (e as MediaQueryList).matches);
-    handler(mq);
-    mq.addEventListener?.("change", handler as (e: MediaQueryListEvent) => void);
-    return () => mq.removeEventListener?.("change", handler as (e: MediaQueryListEvent) => void);
-  }, []);
+  const { session } = useSession();
+  const { width } = useWindowDimensions();
+  const isMobile = width < 720;
 
   return (
-    <div style={styles.page}>
-      <style>{baseCss}</style>
+    <View style={styles.page}>
+      <Head>
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        {/* Globalt: tillad scroll + skjul AL footer på web */}
+        <style>{`
+          html, body, #root, #__next { height: auto !important; overflow: auto !important; }
+          body { position: static !important; -webkit-overflow-scrolling: touch; }
+          footer, .footer, #footer, .bottom-nav, #bottom-nav, [data-footer] { display:none !important; }
+        `}</style>
+      </Head>
 
-      <nav className="nav">
-        <a className="brand" href="/">
-          <img src="/liguster-logo-website-clean.png" alt="Liguster" height={28} />
-        </a>
+      <View style={styles.nav}>
+        <TouchableOpacity onPress={() => router.push("/")}>
+          <Text style={styles.brand}>Liguster</Text>
+        </TouchableOpacity>
 
-        <div className="right">
-          <a className="btn" href="/LoginScreen">Log ind</a>
-        </div>
-      </nav>
+        <View style={styles.right}>
+          {!session ? (
+            <Link href="/LoginScreen" style={styles.link}>Log ind</Link>
+          ) : (
+            <>
+              {!isMobile && (
+                <>
+                  <Link href="/(protected)/Nabolag" style={styles.link}>Nabolag</Link>
+                  <Link href="/(protected)/ForeningerScreen" style={styles.link}>Forening</Link>
+                  <Link href="/(protected)/Beskeder" style={styles.link}>Beskeder</Link>
+                </>
+              )}
+              <Link href="/(protected)/Nabolag" style={styles.ctaLink}>Gå til app</Link>
+            </>
+          )}
+        </View>
+      </View>
 
-      {/* Keep content below the sticky nav and ensure it’s clickable */}
-      <main className="content" role="main" style={{ pointerEvents: "auto" }}>
+      <View style={styles.content}>
         <Slot />
-      </main>
-    </div>
+      </View>
+    </View>
   );
 }
 
-const baseCss = `
-  * { box-sizing: border-box; }
-  html, body, #__next { height: 100%; pointer-events: auto !important; }
-  a, [role=link], button { cursor: pointer; }
-  .nav { height:64px; background:#0b1220; border-bottom:1px solid #1e293b;
-         padding:0 24px; display:flex; align-items:center; justify-content:space-between;
-         position:sticky; top:0; z-index:1000; }
-  .brand { display:flex; align-items:center; gap:10px; text-decoration:none; }
-  .right { display:flex; align-items:center; gap:16px; }
-  .btn  { padding:8px 12px; border:1px solid #334155; border-radius:10px;
-          color:#e2e8f0; text-decoration:none; font-weight:700; }
-  .content { margin-top: 8px; min-height: calc(100vh - 64px); }
-`;
-
-const styles = {
-  page: { backgroundColor: "#7C8996", minHeight: "100vh" } as React.CSSProperties,
-};
+const styles = StyleSheet.create({
+  page: { flex: 1, backgroundColor: "#0f1623" },
+  nav: {
+    height: 64, backgroundColor: "#0b1220",
+    borderBottomWidth: 1, borderBottomColor: "#1e293b",
+    paddingHorizontal: 24, flexDirection: "row",
+    alignItems: "center", justifyContent: "space-between",
+  },
+  brand: { color: "#fff", fontSize: 18, fontWeight: "800" },
+  right: { flexDirection: "row", alignItems: "center", gap: 16 },
+  link: { color: "#cbd5e1", fontSize: 14 },
+  ctaLink: {
+    color: "#0b1220", backgroundColor: "#fff",
+    paddingVertical: 8, paddingHorizontal: 12,
+    borderRadius: 10, fontWeight: "800",
+  } as any,
+  content: { flex: 1, minHeight: 0 },
+});

@@ -1,2 +1,2 @@
 // app/(public)/index.tsx
-export { default } from "./index.web";
+export { default, options } from "./index.web";

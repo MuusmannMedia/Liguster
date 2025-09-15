@@ -1,123 +1,143 @@
 // app/index.web.tsx
-import React, { useEffect } from "react";
-import { Image, StyleSheet, Text, View } from "react-native";
-import LogoNEG from "../assets/images/Liguster-logo-NEG.png";
+import React, { useEffect, useState } from "react";
 
-export default function WebLanding() {
+/**
+ * RADIKAL TEST-LANDINGPAGE
+ * - Helt hvid baggrund, gigantiske links og knapper
+ * - Rene <a>-tags + JS-fallback-knapper (window.location.assign)
+ * - Debugpanel der viser hydration + registrerer klik
+ */
+
+export default function TestLanding() {
+  const [hydrated, setHydrated] = useState(false);
+  const [clicks, setClicks] = useState<number>(0);
+
   useEffect(() => {
-    console.log("EXPO_PUBLIC_SUPABASE_URL:", process.env.EXPO_PUBLIC_SUPABASE_URL);
-    console.log(
-      "EXPO_PUBLIC_SUPABASE_ANON_KEY:",
-      process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ? "•sat•" : "•mangler•"
-    );
-    // Defensively ensure clicks are allowed even pre-hydration:
+    setHydrated(true);
+
+    // defensivt: sørg for at intet spærre pointer events
     if (typeof document !== "undefined") {
       const html = document.documentElement;
       const body = document.body;
       const root = (document.getElementById("__next") || body) as HTMLElement;
-      [html, body, root].forEach((el) => (el.style.pointerEvents = "auto"));
+      [html, body, root].forEach((el) => {
+        el.style.pointerEvents = "auto";
+        el.style.overflow = "auto";
+      });
+
+      const onDocClick = () => setClicks((n) => n + 1);
+      document.addEventListener("click", onDocClick);
+      return () => document.removeEventListener("click", onDocClick);
     }
   }, []);
 
+  const go = (path: string) => {
+    try {
+      window.location.assign(path);
+    } catch {
+      // sidste udvej
+      window.location.href = path;
+    }
+  };
+
   return (
-    <View style={styles.page}>
-      <style>{`
-        .rlink{ color:#93c5fd; text-decoration:underline; font-size:14px; display:inline-block }
-        .rlink-lg{ color:#cbd5e1; text-decoration:underline; font-size:14px; display:inline-block }
-      `}</style>
+    <div style={styles.page}>
+      <style>{baseCss}</style>
 
-      {/* Hero */}
-      <View style={styles.hero}>
-        <View style={styles.heroInner}>
-          <View style={styles.heroCol}>
-            <Text style={styles.heroTitle}>Nabolaget – samlet ét sted</Text>
-            <Text style={styles.heroSubtitle}>
-              Hjælp hinanden, lån ting, del arrangementer og hold styr på foreningen.
-              Liguster samler hverdagen i dit nabolag.
-            </Text>
-            <Text style={styles.heroNote}>
-              Webudgaven er under udvikling. Har du allerede en konto, kan du logge ind nedenfor.
-            </Text>
+      <div style={styles.wrap}>
+        <h1 style={styles.h1}>Liguster — TEST LANDING</h1>
+        <p style={styles.p}>
+          Dette er en <b>radikal</b> testside. Links herunder er bevidst helt enkle, så vi kan tjekke routing.
+        </p>
 
-            <View style={styles.inlineLinks}>
-              <a className="rlink" href="/privacy">Privacy Policy</a>
-            </View>
-          </View>
+        {/* RENE <a>-LINKS (fuld reload) */}
+        <div style={styles.block}>
+          <h2 style={styles.h2}>Rene &lt;a&gt;-links</h2>
+          <a className="biglink" href="/LoginScreen">/LoginScreen</a>
+          <a className="biglink" href="/Nabolag">/Nabolag</a>
+          <a className="biglink" href="/privacy">/privacy</a>
+          <a className="biglink" href="/reset-password">/reset-password</a>
+        </div>
 
-          <View style={styles.heroCol}>
-            <Image source={LogoNEG} style={styles.heroImage} resizeMode="contain" />
-          </View>
-        </View>
-      </View>
+        {/* JS-FALLBACK-KNAPPER */}
+        <div style={styles.block}>
+          <h2 style={styles.h2}>JS-fallback knapper</h2>
+          <button className="bigbtn" onClick={() => go("/LoginScreen")}>
+            Gå til /LoginScreen (window.location.assign)
+          </button>
+          <button className="bigbtn" onClick={() => go("/Nabolag")}>
+            Gå til /Nabolag (window.location.assign)
+          </button>
+          <button className="bigbtn" onClick={() => go("/privacy")}>
+            Gå til /privacy (window.location.assign)
+          </button>
+          <button className="bigbtn" onClick={() => go("/reset-password")}>
+            Gå til /reset-password (window.location.assign)
+          </button>
+        </div>
 
-      {/* Features */}
-      <View style={styles.section}>
-        <View style={styles.columns}>
-          <Feature title="Opslag & hjælp" text="Efterlys hjælp, tilbyd din hånd eller del ting væk. Alt samlet i nabolaget." />
-          <Feature title="Foreninger" text="Medlemslister, kalender, opslag og beskeder – nemt for bestyrelsen." />
-          <Feature title="Beskeder" text="Hold samtalen i appen – både 1:1 og i grupper." />
-        </View>
-      </View>
-
-      {/* Bottom CTA – use plain <a> so it works pre-hydration */}
-      <View style={styles.bottomCta}>
-        <Text style={styles.bottomCtaTitle}>Klar til at logge ind?</Text>
-        <View style={styles.bottomCtaRow}>
-          <a className="rlink-lg" href="/LoginScreen">Log ind</a>
-          <Text style={styles.dot}>·</Text>
-          <a className="rlink-lg" href="/privacy">Privacy Policy</a>
-        </View>
-        <View style={{ marginTop: 8 }}>
-          <a className="rlink-lg" href="/Nabolag">Se opslag uden login</a>
-        </View>
-        <Text style={styles.copy}>© {new Date().getFullYear()} Liguster</Text>
-      </View>
-    </View>
+        {/* DEBUG */}
+        <div style={styles.debug}>
+          <div>Hydrated: <b>{hydrated ? "YES" : "NO"}</b></div>
+          <div>Document click events registreret: <b>{clicks}</b></div>
+          <div>Origin: <code>{typeof window !== "undefined" ? window.location.origin : "-"}</code></div>
+        </div>
+      </div>
+    </div>
   );
 }
 
-function Feature({ title, text }: { title: string; text: string }) {
-  return (
-    <View style={styles.feature}>
-      <Text style={styles.featureTitle}>{title}</Text>
-      <Text style={styles.featureText}>{text}</Text>
-    </View>
-  );
-}
+const baseCss = `
+  html, body, #__next { height: 100%; background:#ffffff; }
+  .biglink {
+    display:block;
+    margin:10px 0;
+    padding:20px 24px;
+    font-size:24px;
+    font-weight:800;
+    text-decoration:none;
+    color:#0b1220;
+    border:2px solid #0b1220;
+    border-radius:14px;
+  }
+  .biglink:active { transform: translateY(1px); }
+  .bigbtn {
+    display:block;
+    width:100%;
+    margin:10px 0;
+    padding:18px 24px;
+    font-size:18px;
+    font-weight:900;
+    color:#ffffff;
+    background:#0b1220;
+    border:0;
+    border-radius:14px;
+  }
+  .bigbtn:active { transform: translateY(1px); }
+`;
 
-const styles = StyleSheet.create({
-  page: { backgroundColor: "#0f1623", minHeight: "100vh" },
-  hero: { paddingVertical: 56, backgroundColor: "#0f1623" },
-  heroInner: {
-    maxWidth: 1200, width: "100%", alignSelf: "center",
-    paddingHorizontal: 24, gap: 32, flexDirection: "row", flexWrap: "wrap",
+const styles: Record<string, React.CSSProperties> = {
+  page: {
+    minHeight: "100vh",
+    background: "#ffffff",
+    color: "#0b1220",
+    pointerEvents: "auto",
   },
-  heroCol: { flex: 1, minWidth: 300, justifyContent: "center" },
-  heroTitle: { color: "white", fontSize: 42, fontWeight: "800", marginBottom: 12 },
-  heroSubtitle: { color: "#cbd5e1", fontSize: 18, lineHeight: 26, marginBottom: 16, maxWidth: 560 },
-  heroNote: { color: "#94a3b8", fontSize: 13, marginTop: 10 },
-  heroImage: { width: "100%", height: 320 },
-
-  inlineLinks: { flexDirection: "row", gap: 16, marginTop: 12 },
-
-  section: { backgroundColor: "#0f1623", paddingVertical: 40 },
-  columns: {
-    maxWidth: 1200, width: "100%", alignSelf: "center",
-    paddingHorizontal: 24, gap: 24, flexDirection: "row", flexWrap: "wrap",
+  wrap: {
+    maxWidth: 720,
+    margin: "0 auto",
+    padding: "32px 20px 80px",
   },
-  feature: {
-    flex: 1, minWidth: 260, backgroundColor: "#111827", borderWidth: 1, borderColor: "#1f2937",
-    padding: 20, borderRadius: 16,
+  h1: { margin: 0, fontSize: 40, fontWeight: 900 },
+  h2: { margin: "18px 0 8px", fontSize: 18 },
+  p: { fontSize: 16, lineHeight: 1.5 },
+  block: { marginTop: 18, paddingTop: 8, borderTop: "1px solid #e5e7eb" },
+  debug: {
+    marginTop: 28,
+    padding: 16,
+    border: "2px dashed #94a3b8",
+    borderRadius: 12,
+    background: "#f8fafc",
+    fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
   },
-  featureTitle: { color: "#e2e8f0", fontSize: 18, fontWeight: "700", marginBottom: 6 },
-  featureText: { color: "#94a3b8", lineHeight: 20 },
-
-  bottomCta: {
-    backgroundColor: "#0b1220", borderTopWidth: 1, borderTopColor: "#1f2937",
-    paddingVertical: 36, paddingHorizontal: 24, alignItems: "center", gap: 8,
-  },
-  bottomCtaTitle: { color: "#e2e8f0", fontWeight: "800", fontSize: 20 },
-  bottomCtaRow: { flexDirection: "row", gap: 12, alignItems: "center" },
-  dot: { color: "#475569", fontSize: 18, marginHorizontal: 4, marginTop: -2 },
-  copy: { color: "#64748b", fontSize: 12, marginTop: 6 },
-});
+};

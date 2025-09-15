@@ -1,91 +1,97 @@
-// app/(public)/_layout.web.tsx
-import { Link, Slot } from "expo-router";
-import Head from "expo-router/head";
-import React from "react";
-import { StyleSheet, View } from "react-native";
-import { useSession } from "../../hooks/useSession"; // <- VIGTIG: to niveaer op
+// app/(protected)/_layout.web.tsx
+import { Slot, router } from "expo-router";
+import React, { useCallback, useMemo } from "react";
+import { supabase } from "../../utils/supabase";
 
-export default function PublicWebLayout() {
-  const { session } = useSession();
-  const isMobile = typeof window !== "undefined" ? window.innerWidth < 720 : false;
+export default function ProtectedWebLayout() {
+  const handleLogout = useCallback(async () => {
+    try {
+      await supabase.auth.signOut();
+    } finally {
+      router.replace("/"); // tilbage til landing efter log ud
+    }
+  }, []);
+
+  const Logo = useMemo(
+    () => (
+      <a className="brand" href="/Nabolag" aria-label="Liguster – Nabolag">
+        <img
+          src="/liguster-logo-website-clean.png"
+          alt="Liguster"
+          height={22}
+          style={{ display: "block" }}
+          onError={(e) => {
+            const el = e.currentTarget as HTMLImageElement;
+            // fallback til evt. stort L i Assets hvis navn/case adskiller sig
+            if (!el.dataset.triedFallback) {
+              el.dataset.triedFallback = "1";
+              el.src = "/Liguster-logo-website-clean.png";
+            } else {
+              el.style.display = "none";
+              const txt = el.nextElementSibling as HTMLSpanElement | null;
+              if (txt) txt.style.display = "inline-block";
+            }
+          }}
+        />
+        <span
+          style={{
+            display: "none",
+            color: "#e2e8f0",
+            fontWeight: 800,
+            letterSpacing: 0.5,
+            fontSize: 16,
+          }}
+        >
+          Liguster
+        </span>
+      </a>
+    ),
+    []
+  );
 
   return (
-    <View style={styles.page}>
-      <Head>
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        {/* Globalt: tillad scroll + skjul AL footer på web */}
-        <style>{`
-          html, body, #root, #__next { height: auto !important; overflow: auto !important; }
-          body { position: static !important; -webkit-overflow-scrolling: touch; }
-          footer, .footer, #footer, .bottom-nav, #bottom-nav, [data-footer] { display:none !important; }
-        `}</style>
-      </Head>
+    <div className="page">
+      <style>{baseCss}</style>
 
-      <View style={styles.nav}>
-        <a href="/" style={{ display: "flex", alignItems: "center" }}>
-          <img
-            src="/liguster-logo-website-clean.png"
-            alt="Liguster"
-            style={{ height: 28, width: "auto" }}
-          />
-        </a>
+      <nav className="nav">
+        {Logo}
 
-        <View style={styles.right}>
-          {!session ? (
-            <Link href="/LoginScreen" style={styles.link}>
-              Log ind
-            </Link>
-          ) : (
-            <>
-              {!isMobile && (
-                <>
-                  <Link href="/(protected)/Nabolag" style={styles.link}>
-                    Nabolag
-                  </Link>
-                  <Link href="/(protected)/ForeningerScreen" style={styles.link}>
-                    Forening
-                  </Link>
-                  <Link href="/(protected)/Beskeder" style={styles.link}>
-                    Beskeder
-                  </Link>
-                </>
-              )}
-              <Link href="/(protected)/Nabolag" style={styles.ctaLink}>
-                Gå til app
-              </Link>
-            </>
-          )}
-        </View>
-      </View>
+        <div className="right">
+          <a className="link" href="/Nabolag">Nabolag</a>
+          <a className="link" href="/Forening">Forening</a>
+          <a className="link" href="/Beskeder">Beskeder</a>
+          <button className="logout" onClick={handleLogout}>Log ud</button>
+        </div>
+      </nav>
 
-      <View style={styles.content}>
+      <main className="content">
         <Slot />
-      </View>
-    </View>
+      </main>
+    </div>
   );
 }
 
-const styles = StyleSheet.create({
-  page: { flex: 1, backgroundColor: "#0f1623" },
-  nav: {
-    height: 64,
-    backgroundColor: "#0b1220",
-    borderBottomWidth: 1,
-    borderBottomColor: "#1e293b",
-    paddingHorizontal: 24,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  right: { flexDirection: "row", alignItems: "center", gap: 16 },
-  link: { color: "#cbd5e1", fontSize: 14 },
-  ctaLink: {
-    color: "#0b1220",
-    backgroundColor: "#fff",
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    fontWeight: "800",
-  } as any,
-  content: { flex: 1, minHeight: 0 },
-});
+const baseCss = `
+  .page { min-height: 100vh; background:#7C8996; }
+  .nav {
+    height:64px; background:#0b1220; border-bottom:1px solid #1e293b;
+    padding:0 24px; display:flex; align-items:center; justify-content:space-between;
+    position:sticky; top:0; z-index:100;
+  }
+  .brand { display:flex; align-items:center; gap:10px; text-decoration:none; }
+  .right { display:flex; align-items:center; gap:12px; }
+  .link {
+    color:#cbd5e1; text-decoration:none; font-size:14px; padding:6px 8px; border-radius:8px;
+  }
+  .link:hover { background:#111827; }
+  .logout {
+    padding:8px 10px; border:1px solid #334155; border-radius:10px;
+    background:#0f172a; color:#e2e8f0; font-weight:800; cursor:pointer;
+  }
+  .logout:hover { filter: brightness(1.1); }
+  .content { padding-top: 14px; }
+  @media (max-width: 719px) {
+    .right { gap:8px; }
+    .link { display:none; } /* hold topnav kompakt på mobil, kun Log ud */
+  }
+`;

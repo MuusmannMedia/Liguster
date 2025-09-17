@@ -18,6 +18,8 @@ import { supabase } from "../../utils/supabase";
 
 export const options = { headerShown: false };
 
+const RESET_REDIRECT = "https://liguster-app.dk/reset-password"; // apex + no trailing slash
+
 export default function ResetPasswordNative() {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -25,26 +27,38 @@ export default function ResetPasswordNative() {
 
   const onBack = () => router.back();
 
+  const isValidEmail = (v: string) =>
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
+
   const sendReset = async () => {
-    const mail = email.trim();
-    if (!mail) {
-      Alert.alert("Mangler e-mail", "Skriv din e-mail først.");
+    const mail = email.trim().toLowerCase();
+    if (!isValidEmail(mail)) {
+      Alert.alert("Ugyldig e-mail", "Skriv en gyldig e-mailadresse.");
       return;
     }
+
     try {
       setSending(true);
+
       const { error } = await supabase.auth.resetPasswordForEmail(mail, {
-        // Web-siden der fuldender reset efter e-mailbekræftelse:
-        redirectTo: "https://www.liguster-app.dk/reset-password",
+        redirectTo: RESET_REDIRECT,
       });
+
       if (error) throw error;
+
       Alert.alert(
         "Tjek din mail",
-        "Vi har sendt et link til at nulstille dit password."
+        "Vi har sendt et link til at nulstille dit password. Brug det nyeste link og åbn det med det samme."
       );
       router.back();
     } catch (e: any) {
-      Alert.alert("Kunne ikke sende reset-mail", e?.message ?? "Prøv igen senere.");
+      const msg = String(e?.message ?? e ?? "");
+      // Hyppige supabase-fejl oversat lidt venligt
+      if (msg.includes("rate")) {
+        Alert.alert("Ro på 🙂", "Du har anmodet for nylig. Prøv igen om lidt.");
+      } else {
+        Alert.alert("Kunne ikke sende reset-mail", msg);
+      }
     } finally {
       setSending(false);
     }
@@ -84,17 +98,26 @@ export default function ResetPasswordNative() {
                 onChangeText={setEmail}
                 returnKeyType="send"
                 onSubmitEditing={sendReset}
+                editable={!sending}
               />
 
               <TouchableOpacity
-                style={[styles.button, sending && { opacity: 0.6 }]}
+                style={[
+                  styles.button,
+                  (sending || !isValidEmail(email)) && { opacity: 0.6 },
+                ]}
                 onPress={sendReset}
-                disabled={sending}
+                disabled={sending || !isValidEmail(email)}
+                activeOpacity={0.85}
               >
                 <Text style={styles.buttonText}>
                   {sending ? "Sender…" : "SEND RESET-LINK"}
                 </Text>
               </TouchableOpacity>
+
+              <Text style={styles.hint}>
+                Tip: Hvis mailen ikke kommer, så tjek spam, og prøv igen om 1-2 min.
+              </Text>
             </View>
           </SafeAreaView>
         </TouchableWithoutFeedback>
@@ -149,4 +172,6 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   buttonText: { color: "#171C22", fontSize: 16, fontWeight: "700", letterSpacing: 0.5 },
+
+  hint: { color: "#9aa3ad", marginTop: 10, fontSize: 12, textAlign: "center" },
 });

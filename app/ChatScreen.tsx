@@ -14,11 +14,9 @@ import {
   TouchableOpacity,
   TouchableWithoutFeedback,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import { supabase } from '../utils/supabase';
-
-const AVATAR_SIZE = 40;
-const FALLBACK_COLOR = '#6337c4';
 
 type Message = {
   id: string;
@@ -35,6 +33,24 @@ export default function ChatScreen() {
   const navigation = useNavigation<any>();
   const { threadId, postId, otherUserId } = route.params || {};
 
+  const { width, height } = useWindowDimensions();
+  const isTablet =
+    (Platform.OS === 'ios' && // @ts-ignore
+      (Platform as any).isPad) || Math.min(width, height) >= 768;
+
+  // Responsive sizes
+  const S = {
+    avatar: isTablet ? 46 : 40,
+    header: isTablet ? 22 : 18,
+    bubbleText: isTablet ? 17 : 15,
+    time: isTablet ? 12 : 11,
+    inputFont: isTablet ? 18 : 16,
+    bubblePadV: isTablet ? 14 : 12,
+    bubblePadH: isTablet ? 18 : 16,
+    rowPadH: isTablet ? 16 : 12,
+    bubbleMaxWidthPct: isTablet ? 0.68 : 0.76, // lidt bredere bobler på tablet
+  };
+
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [userId, setUserId] = useState<string | null>(null);
@@ -45,12 +61,10 @@ export default function ChatScreen() {
 
   const flatListRef = useRef<FlatList>(null);
 
-  // Hent aktuel bruger
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUserId(data?.user?.id || null));
   }, []);
 
-  // Førstegang: hent beskeder + titler + avatarer
   useEffect(() => {
     if (!threadId) return;
     let cancelled = false;
@@ -166,7 +180,6 @@ export default function ChatScreen() {
     };
   }, [threadId]);
 
-  // Scroll til bund når antallet ændrer sig
   useEffect(() => {
     flatListRef.current?.scrollToEnd?.({ animated: true });
   }, [messages.length]);
@@ -218,7 +231,7 @@ export default function ChatScreen() {
 
   const handleLongPressDelete = (message: Message) => {
     if (!userId) return;
-    if (message.sender_id !== userId) return; // må kun slette egne beskeder
+    if (message.sender_id !== userId) return;
 
     Alert.alert(
       'Slet besked?',
@@ -251,14 +264,15 @@ export default function ChatScreen() {
 
   const AvatarView = ({ uid }: { uid: string }) =>
     avatars[uid] ? (
-      <Image source={{ uri: avatars[uid] as string }} style={styles.avatar} />
+      <Image source={{ uri: avatars[uid] as string }} style={{ width: S.avatar, height: S.avatar, borderRadius: S.avatar / 2, marginHorizontal: 6, backgroundColor: '#ddd' }} />
     ) : (
-      <View style={styles.avatarBadge}>
-        <Text style={styles.avatarInitial}>{getInitial(uid)}</Text>
+      <View style={{ width: S.avatar, height: S.avatar, borderRadius: S.avatar / 2, marginHorizontal: 6, backgroundColor: '#6337c4', alignItems: 'center', justifyContent: 'center' }}>
+        <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: isTablet ? 24 : 22 }}>
+          {getInitial(uid)}
+        </Text>
       </View>
     );
 
-  // ----------- RENDER -----------
   return (
     <View style={styles.root}>
       {/* Topbar */}
@@ -272,7 +286,7 @@ export default function ChatScreen() {
         </TouchableOpacity>
 
         <View style={styles.headerTitleContainer}>
-          <Text style={styles.header} numberOfLines={2}>
+          <Text style={[styles.header, { fontSize: S.header }]} numberOfLines={2}>
             {postTitle ? postTitle.toUpperCase() : 'UKENDT OPSLAG'}
           </Text>
         </View>
@@ -302,23 +316,32 @@ export default function ChatScreen() {
                   <View
                     style={[
                       styles.row,
+                      { paddingHorizontal: S.rowPadH },
                       isMe ? styles.rowRight : styles.rowLeft,
                     ]}
                   >
                     {!isMe && <AvatarView uid={item.sender_id} />}
 
-                    <View style={styles.bubbleWrap}>
+                    <View style={{ maxWidth: `${S.bubbleMaxWidthPct * 100}%`, flexShrink: 1 }}>
                       <TouchableOpacity
                         activeOpacity={0.9}
                         delayLongPress={350}
                         onLongPress={() => handleLongPressDelete(item)}
                         style={[
                           styles.bubble,
+                          {
+                            paddingVertical: S.bubblePadV,
+                            paddingHorizontal: S.bubblePadH,
+                          },
                           isMe ? styles.bubbleRight : styles.bubbleLeft,
                         ]}
                       >
                         <Text
-                          style={[styles.bubbleText, isMe && { color: '#fff' }]}
+                          style={[
+                            styles.bubbleText,
+                            { fontSize: S.bubbleText, lineHeight: S.bubbleText + 5 },
+                            isMe && { color: '#fff' },
+                          ]}
                         >
                           {item.text}
                         </Text>
@@ -326,6 +349,7 @@ export default function ChatScreen() {
                       <Text
                         style={[
                           styles.time,
+                          { fontSize: S.time },
                           isMe ? styles.timeRight : styles.timeLeft,
                         ]}
                       >
@@ -351,7 +375,7 @@ export default function ChatScreen() {
           <TextInput
             value={input}
             onChangeText={setInput}
-            style={styles.input}
+            style={[styles.input, { fontSize: S.inputFont, minHeight: isTablet ? 48 : 44, maxHeight: isTablet ? 140 : 120 }]}
             placeholder="Skriv en besked…"
             placeholderTextColor="#999"
             multiline
@@ -360,7 +384,7 @@ export default function ChatScreen() {
             textAlignVertical="top"
           />
           <TouchableOpacity onPress={handleSend} style={styles.sendBtn}>
-            <Text style={styles.sendBtnText}>SEND</Text>
+            <Text style={[styles.sendBtnText, { fontSize: isTablet ? 18 : 17 }]}>SEND</Text>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -407,7 +431,6 @@ const styles = StyleSheet.create({
   },
   header: {
     color: '#fff',
-    fontSize: 18,
     fontWeight: 'bold',
     textAlign: 'center',
     textTransform: 'uppercase',
@@ -420,22 +443,13 @@ const styles = StyleSheet.create({
     width: '100%',
     flexDirection: 'row',
     alignItems: 'flex-end',
-    paddingHorizontal: 12,
     marginBottom: 10,
   },
   rowLeft: { justifyContent: 'flex-start' },
   rowRight: { justifyContent: 'flex-end' },
 
-  /* Container for boble + tid (styrer max bredde) */
-  bubbleWrap: {
-    maxWidth: '76%',   // justér 72–80% efter smag
-    flexShrink: 1,
-  },
-
-  /* Boble */
+  /* Boble (fælles) */
   bubble: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
     borderRadius: 18,
     shadowColor: '#000',
     shadowOpacity: 0.08,
@@ -447,39 +461,17 @@ const styles = StyleSheet.create({
   bubbleLeft: { backgroundColor: '#fff' },
 
   bubbleText: {
-    fontSize: 15,
     color: '#222',
-    lineHeight: 20,
     flexShrink: 1,
     flexWrap: 'wrap',
   },
 
   time: {
-    fontSize: 11,
     color: '#a1a1a1',
     marginTop: 4,
   },
   timeLeft: { alignSelf: 'flex-start', marginLeft: 6 },
   timeRight: { alignSelf: 'flex-end', marginRight: 6 },
-
-  /* Avatar */
-  avatar: {
-    width: AVATAR_SIZE,
-    height: AVATAR_SIZE,
-    borderRadius: AVATAR_SIZE / 2,
-    marginHorizontal: 6,
-    backgroundColor: '#ddd',
-  },
-  avatarBadge: {
-    width: AVATAR_SIZE,
-    height: AVATAR_SIZE,
-    borderRadius: AVATAR_SIZE / 2,
-    marginHorizontal: 6,
-    backgroundColor: FALLBACK_COLOR,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarInitial: { color: '#fff', fontWeight: 'bold', fontSize: 22 },
 
   /* Input */
   inputRow: {
@@ -495,12 +487,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 8,
     paddingHorizontal: 16,
-    fontSize: 16,
     marginRight: 9,
-    minHeight: 44,
     color: '#1e2330',
     textAlignVertical: 'top',
-    maxHeight: 120,
   },
   sendBtn: {
     paddingVertical: 0,
@@ -513,7 +502,6 @@ const styles = StyleSheet.create({
   sendBtnText: {
     color: '#fff',
     fontWeight: 'bold',
-    fontSize: 17,
     letterSpacing: 1,
     textTransform: 'uppercase',
   },

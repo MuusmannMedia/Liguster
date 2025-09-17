@@ -1,6 +1,6 @@
 // app/MigScreen.tsx
 import { useNavigation } from '@react-navigation/native';
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -23,44 +23,34 @@ import { supabase } from '../utils/supabase';
 
 const PLACEHOLDER = 'https://placehold.co/250x250?text=Profil';
 
-/** ====== iPhone vs iPad størrelser (justér frit) ====== */
+/** ====== iPhone vs iPad størrelser ====== */
 const iPhoneSizes = {
-  nameFont: 15,
-  nameInputFont: 15,
-  buttonFont: 10,          // knap-tekst iPhone
+  nameFont: 16,
+  nameInputFont: 16,
+  buttonFont: 12,
   actionFont: 13,
-  emailFont: 10,
-  statusFont: 8,
-  logoutFont: 14,
-  avatarSize: 250,
-  avatarMarginBottom: 20,  // <-- iPhone: afstand under avatar
-  cardWidth: '85%' as const,
-  cardPadding: 24,
-  buttonWidth: 110,
-  buttonHeight: 34,
-  sectionGapBelowButtons: 18,
-  sectionGapAboveBottomRow: 26,
+  emailFont: 12,
+  statusFont: 10,
+  buttonHeight: 36,
+  cardPadding: 22,
+  sectionGapBelowName: 10,
+  sectionGapBelowButtons: 12,
 };
 
 const iPadSizes = {
   nameFont: 30,
   nameInputFont: 20,
-  buttonFont: 14,          // knap-tekst iPad
+  buttonFont: 14,
   actionFont: 15,
   emailFont: 14,
   statusFont: 14,
-  logoutFont: 16,
-  avatarSize: 460,
-  avatarMarginBottom: 32,  // <-- iPad: afstand under avatar
-  cardWidth: '65%' as const,
+  buttonHeight: 42,
   cardPadding: 46,
-  buttonWidth: 140,
-  buttonHeight: 46,
-  sectionGapBelowButtons: 24,
-  sectionGapAboveBottomRow: 30,
+  sectionGapBelowName: 14,
+  sectionGapBelowButtons: 18,
 };
 
-/** ====== Navn‑editor ====== */
+/** ====== Navn-editor ====== */
 const NameEditor = ({
   initialName,
   onSave,
@@ -93,21 +83,14 @@ const NameEditor = ({
           returnKeyType="done"
           onSubmitEditing={handleSave}
         />
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 14 }}>
           <TouchableOpacity onPress={handleSave} disabled={savingName}>
             <Text style={[styles.actionText, { color: '#259030', fontSize: sizes.actionFont }]}>
               {savingName ? 'GEMMER…' : 'GEM'}
             </Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => {
-              setEditing(false);
-              Keyboard.dismiss();
-            }}
-          >
-            <Text style={[styles.actionText, { color: '#F44', fontSize: sizes.actionFont }]}>
-              ANNULLER
-            </Text>
+          <TouchableOpacity onPress={() => { setEditing(false); Keyboard.dismiss(); }}>
+            <Text style={[styles.actionText, { color: '#F44', fontSize: sizes.actionFont }]}>ANNULLER</Text>
           </TouchableOpacity>
         </View>
       </>
@@ -117,8 +100,11 @@ const NameEditor = ({
   return (
     <>
       <Text style={[styles.name, { fontSize: sizes.nameFont }]}>{initialName || 'Bruger'}</Text>
-      <TouchableOpacity onPress={() => setEditing(true)} style={styles.textButton}>
-        <Text style={[styles.textButtonTextUnderline, { fontSize: sizes.buttonFont }]}>RET NAVN</Text>
+      <TouchableOpacity
+        onPress={() => setEditing(true)}
+        style={[styles.actionBox, { height: sizes.buttonHeight, alignSelf: 'center', paddingHorizontal: 18, marginTop: 6 }]}
+      >
+        <Text style={[styles.actionBoxText, { fontSize: sizes.buttonFont }]}>RET NAVN</Text>
       </TouchableOpacity>
     </>
   );
@@ -127,28 +113,25 @@ const NameEditor = ({
 /** ====== Skærm ====== */
 export default function MigScreen() {
   const navigation = useNavigation<any>();
-  const {
-    user,
-    profile,
-    loading,
-    uploading,
-    handleLogout,
-    pickAndUploadAvatar,
-    setProfile,
-  } = useProfile();
+  const { user, profile, loading, uploading, handleLogout, pickAndUploadAvatar, setProfile } = useProfile();
 
   const [savingNameLocal, setSavingNameLocal] = useState(false);
   const [removing, setRemoving] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
   const { width, height } = useWindowDimensions();
-  const isTablet = useMemo(() => {
-    // @ts-ignore iPad
-    if (Platform.OS === 'ios' && Platform.isPad) return true;
-    return Math.min(width, height) >= 768;
-  }, [width, height]);
+  const isTablet =
+    (Platform.OS === 'ios' && // @ts-ignore
+      (Platform as any).isPad) || Math.min(width, height) >= 768;
 
   const sizes = isTablet ? iPadSizes : iPhoneSizes;
+
+  const H_PADDING = 14;
+  const cardMaxWidth = Math.min(width - H_PADDING * 2, isTablet ? 720 : 420);
+
+  // Højde på BottomNav + lille top-nudge for at skubbe kortet en anelse ned
+  const NAV_HEIGHT = isTablet ? 160 : 120;
+  const TOP_NUDGE = isTablet ? 26 : 20;
 
   // Gem navn i både public.users og auth metadata
   const saveNameBoth = async (newName: string) => {
@@ -163,12 +146,10 @@ export default function MigScreen() {
         supabase.auth.updateUser({ data: { full_name: newName } }),
         supabase.from('users').update({ name: newName }).eq('id', user.id),
       ]);
-
-      if (authRes.status === 'rejected') throw new Error(authRes.reason?.message || 'Kunne ikke opdatere auth‑profil.');
+      if (authRes.status === 'rejected') throw new Error(authRes.reason?.message || 'Kunne ikke opdatere auth-profil.');
       if (dbRes.status === 'rejected' || (dbRes.status === 'fulfilled' && (dbRes.value as any)?.error)) {
         throw new Error((dbRes as any)?.value?.error?.message || 'Kunne ikke opdatere brugerprofil i databasen.');
       }
-
       setProfile((prev: any) => ({ ...prev, name: newName }));
       return true;
     } catch (e: any) {
@@ -254,52 +235,32 @@ export default function MigScreen() {
         keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
       >
         <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-          <View style={styles.centerArea}>
-            <View style={[styles.card, { width: sizes.cardWidth, padding: sizes.cardPadding }]}>
+          <View
+            style={[
+              styles.centerArea,
+              {
+                paddingHorizontal: H_PADDING,
+                paddingTop: TOP_NUDGE,           // ← lille skub ned
+                paddingBottom: NAV_HEIGHT,       // frihold for BottomNav
+                minHeight: Math.max(0, height - NAV_HEIGHT),
+              },
+            ]}
+          >
+            <View
+              style={[
+                styles.card,
+                { padding: sizes.cardPadding, width: '100%', maxWidth: cardMaxWidth, alignSelf: 'center' },
+              ]}
+            >
+              {/* Billede – fuld bredde, 5:6 */}
               <Image
                 source={imageSource}
-                style={[
-                  styles.avatar,
-                  {
-                    width: sizes.avatarSize,
-                    height: sizes.avatarSize,
-                    marginBottom: sizes.avatarMarginBottom, // <- forskellig pr. device
-                  },
-                ]}
+                style={[styles.avatar, { width: '100%', aspectRatio: 5 / 6, marginBottom: 10 }]}
                 resizeMode="cover"
               />
 
-              {/* Knapper: RET BILLEDE + SLET BILLEDE */}
-              <View
-                style={{
-                  flexDirection: 'row',
-                  justifyContent: 'space-between',
-                  width: sizes.avatarSize,
-                  marginBottom: sizes.sectionGapBelowButtons,
-                }}
-              >
-                <TouchableOpacity
-                  onPress={pickAndUploadAvatar}
-                  disabled={uploading}
-                  style={[styles.actionBox, { width: sizes.buttonWidth, height: sizes.buttonHeight }]}
-                >
-                  <Text style={[styles.actionBoxText, { fontSize: sizes.buttonFont }]}>
-                    {uploading ? 'UPLOADER…' : 'RET BILLEDE'}
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={removeAvatar}
-                  disabled={removing}
-                  style={[styles.actionBox, { width: sizes.buttonWidth, height: sizes.buttonHeight }]}
-                >
-                  <Text style={[styles.actionBoxText, { fontSize: sizes.buttonFont }]}>
-                    {removing ? 'SLETTER…' : 'SLET BILLEDE'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-
-              {/* Navn + redigering */}
-              <View style={{ alignItems: 'center', width: '100%', marginBottom: 12 }}>
+              {/* Navn + sort "RET NAVN" knap */}
+              <View style={{ alignItems: 'center', width: '100%', marginBottom: sizes.sectionGapBelowName }}>
                 <NameEditor
                   initialName={initialDisplayName}
                   onSave={saveNameBoth}
@@ -308,41 +269,54 @@ export default function MigScreen() {
                 />
               </View>
 
-              <Text style={[styles.email, { fontSize: sizes.emailFont }]}>
-                {user?.email ?? 'Ingen email'}
-              </Text>
-
-              {/* Nederste række: LOG UD + SLET KONTO */}
-              <View
-                style={{
-                  flexDirection: 'row',
-                  justifyContent: 'space-between',
-                  width: sizes.avatarSize,
-                  marginTop: sizes.sectionGapAboveBottomRow,
-                }}
-              >
-                <View style={{ alignItems: 'center' }}>
-                  <TouchableOpacity
-                    onPress={handleLogout}
-                    disabled={deleting}
-                    style={[styles.actionBox, { width: sizes.buttonWidth, height: sizes.buttonHeight }]}
-                  >
-                    <Text style={[styles.actionBoxText, { fontSize: sizes.buttonFont }]}>LOG UD</Text>
-                  </TouchableOpacity>
-                  <Text style={[styles.status, { fontSize: sizes.statusFont }]}>
-                    {user ? 'Du er logget ind' : 'Du er ikke logget ind'}
+              {/* 4 knapper i to rækker under navnet */}
+              <View style={[styles.fullRow, { gap: 10 }]}>
+                <TouchableOpacity
+                  onPress={pickAndUploadAvatar}
+                  disabled={uploading}
+                  style={[styles.actionBox, { height: sizes.buttonHeight, flex: 1 }]}
+                >
+                  <Text style={[styles.actionBoxText, { fontSize: sizes.buttonFont }]}>
+                    {uploading ? 'UPLOADER…' : 'RET BILLEDE'}
                   </Text>
-                </View>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={removeAvatar}
+                  disabled={removing}
+                  style={[styles.actionBox, { height: sizes.buttonHeight, flex: 1 }]}
+                >
+                  <Text style={[styles.actionBoxText, { fontSize: sizes.buttonFont }]}>
+                    {removing ? 'SLETTER…' : 'SLET BILLEDE'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={{ height: sizes.sectionGapBelowButtons }} />
+
+              <View style={[styles.fullRow, { gap: 10 }]}>
+                <TouchableOpacity
+                  onPress={handleLogout}
+                  disabled={deleting}
+                  style={[styles.actionBox, { height: sizes.buttonHeight, flex: 1 }]}
+                >
+                  <Text style={[styles.actionBoxText, { fontSize: sizes.buttonFont }]}>LOG UD</Text>
+                </TouchableOpacity>
                 <TouchableOpacity
                   onPress={confirmDeleteAccount}
                   disabled={deleting}
-                  style={[styles.actionBox, { width: sizes.buttonWidth, height: sizes.buttonHeight }]}
+                  style={[styles.actionBox, { height: sizes.buttonHeight, flex: 1 }]}
                 >
                   <Text style={[styles.actionBoxText, { fontSize: sizes.buttonFont }]}>
                     {deleting ? 'SLETTER…' : 'SLET KONTO'}
                   </Text>
                 </TouchableOpacity>
               </View>
+
+              {/* Email + status nederst */}
+              <Text style={[styles.email, { fontSize: sizes.emailFont }]}>{user?.email ?? 'Ingen email'}</Text>
+              <Text style={[styles.status, { fontSize: sizes.statusFont }]}>
+                {user ? 'Du er logget ind' : 'Du er ikke logget ind'}
+              </Text>
             </View>
           </View>
         </TouchableWithoutFeedback>
@@ -352,26 +326,25 @@ export default function MigScreen() {
   );
 }
 
-/** ====== Styles (device‑uafhængige) ====== */
+/** ====== Styles (device-uafhængige) ====== */
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#7C8996' },
-  centerArea: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingBottom: 95 },
+  centerArea: {
+    flexGrow: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   card: {
     backgroundColor: '#fff',
     borderRadius: 16,
     alignItems: 'center',
-    marginBottom: 32,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 3,
   },
-  avatar: {
-    borderRadius: 8,
-    borderWidth: 0,
-    borderColor: '#E8ECF1',
-  },
+  avatar: { borderRadius: 12, borderWidth: 0, borderColor: '#E8ECF1' },
 
   name: {
     fontWeight: '700',
@@ -389,26 +362,23 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     borderRadius: 5,
   },
-  actionText: {
-    fontWeight: 'bold',
-    marginHorizontal: 8,
-    textDecorationLine: 'underline',
-  },
-  email: { color: '#6B7280', marginTop: 10, textAlign: 'center' },
-  status: { color: '#2A2D34', opacity: 0.7, marginTop: 4, textAlign: 'center' },
+  actionText: { fontWeight: 'bold', textDecorationLine: 'underline' },
+  email: { color: '#6B7280', marginTop: 12, textAlign: 'center' },
+  status: { color: '#2A2D34', opacity: 0.7, marginTop: 6, textAlign: 'center' },
 
   actionBox: {
     backgroundColor: '#131921',
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: 14,
   },
-  actionBoxText: {
-    color: '#fff',
-    fontWeight: 'bold',
-    textAlign: 'center', // fontSize sættes dynamisk via sizes.buttonFont
-  },
+  actionBoxText: { color: '#fff', fontWeight: 'bold', textAlign: 'center' },
 
-  textButton: { marginTop: 4 },
-  textButtonTextUnderline: { textDecorationLine: 'underline', fontWeight: 'bold' },
+  fullRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    width: '100%',
+  },
 });

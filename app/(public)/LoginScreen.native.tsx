@@ -2,19 +2,19 @@
 import { useRouter } from "expo-router";
 import React, { useRef, useState } from "react";
 import {
-    Alert,
-    Keyboard,
-    KeyboardAvoidingView,
-    Platform,
-    SafeAreaView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    TouchableWithoutFeedback,
-    View,
+  Alert,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  TouchableWithoutFeedback,
+  View,
 } from "react-native";
-import { supabase } from "../../utils/supabase"; // <-- KORREKT STI (to niveauer op)
+import { supabase } from "../../utils/supabase";
 
 export const options = { headerShown: false };
 
@@ -28,21 +28,35 @@ export default function LoginScreenNative() {
   const goHome = () => router.replace("/");
 
   const onLogin = async () => {
-    if (!email || !password) {
+    if (loading) return; // undgå dobbelte tryk
+    const emailTrimmed = email.trim();
+
+    if (!emailTrimmed || !password) {
       Alert.alert("Fejl", "Udfyld både email og password.");
       return;
     }
-    setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    setLoading(false);
 
-    if (error) {
-      Alert.alert("Login fejlede", error.message);
-      return;
+    try {
+      setLoading(true);
+
+      const { error } = await supabase.auth.signInWithPassword({
+        email: emailTrimmed,
+        password,
+      });
+
+      if (error) throw error;
+
+      // Succes: ind i den beskyttede del
+      router.replace("/(protected)/Nabolag");
+    } catch (e) {
+      console.error(e);
+      Alert.alert(
+        "Login fejlede",
+        e instanceof Error ? e.message : String(e)
+      );
+    } finally {
+      setLoading(false);
     }
-
-    // Efter login -> ind i den beskyttede gruppe på native
-    router.replace("/(protected)/Nabolag");
   };
 
   return (
@@ -58,6 +72,7 @@ export default function LoginScreenNative() {
               style={styles.backIcon}
               onPress={goHome}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              disabled={loading}
             >
               <Text style={styles.backIconText}>‹</Text>
             </TouchableOpacity>
@@ -71,6 +86,7 @@ export default function LoginScreenNative() {
                 placeholder="Email"
                 placeholderTextColor="#999"
                 autoCapitalize="none"
+                autoCorrect={false}
                 keyboardType="email-address"
                 textContentType="username"
                 value={email}
@@ -78,6 +94,7 @@ export default function LoginScreenNative() {
                 returnKeyType="next"
                 onSubmitEditing={() => passwordRef.current?.focus()}
                 blurOnSubmit={false}
+                editable={!loading}
               />
 
               <TextInput
@@ -91,11 +108,29 @@ export default function LoginScreenNative() {
                 onChangeText={setPassword}
                 returnKeyType="go"
                 onSubmitEditing={onLogin}
+                editable={!loading}
               />
 
-              <TouchableOpacity style={styles.button} onPress={onLogin} disabled={loading}>
-                <Text style={styles.buttonText}>{loading ? "Logger ind…" : "LOG IND"}</Text>
+              <TouchableOpacity
+                style={[styles.button, loading && { opacity: 0.7 }]}
+                onPress={onLogin}
+                disabled={loading}
+              >
+                <Text style={styles.buttonText}>
+                  {loading ? "Logger ind…" : "LOG IND"}
+                </Text>
               </TouchableOpacity>
+
+              {/* Link til reset-password side */}
+              <View style={{ marginTop: 16, alignItems: "center" }}>
+                <Text style={{ color: "#fff", fontSize: 14 }}>Glemt password?</Text>
+                <TouchableOpacity
+                  onPress={() => router.push("/reset-password-native")}
+                  disabled={loading}
+                >
+                  <Text style={styles.resetLink}>Send reset-link på mail</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </SafeAreaView>
         </TouchableWithoutFeedback>
@@ -150,4 +185,10 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   buttonText: { color: "#171C22", fontSize: 16, fontWeight: "700", letterSpacing: 1 },
+
+  resetLink: {
+    color: "#BBD2FF",
+    textDecorationLine: "underline",
+    fontSize: 14,
+  },
 });

@@ -1,31 +1,48 @@
-// app.json
 {
   "expo": {
-    "name": "liguster-clean",
-    "slug": "liguster-clean",
-    "version": "1.0.0",
+    "name": "Liguster",
+    "slug": "liguster",
+    "version": "1.0.1",                        // ⬅️ Hævet fra 1.0.0 til 1.0.1
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
-    "scheme": "ligusterclean",
+    "icon": "./assets/images/icon-ios.png",
+    "scheme": "liguster",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "dk.liguster.app",
+      "buildNumber": "2",                      // ⬅️ Hævet fra 1 til 2
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSLocationWhenInUseUsageDescription": "Liguster bruger din lokation til at vise relevante opslag og hjælpe dig med at finde ting i dit nabolag.",
+        "LSApplicationQueriesSchemes": ["google", "com.googleusercontent.apps", "fb", "facebook"]
+      }
     },
+
     "android": {
+      "package": "dk.liguster.app",
+      "versionCode": 2,                        // ⬅️ Første gang 1 → nu 2
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png",
+        "foregroundImage": "./assets/images/icon.png",
         "backgroundColor": "#E6F4FE"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "category": ["BROWSABLE", "DEFAULT"],
+          "data": [{ "scheme": "liguster" }]
+        }
+      ]
     },
+
     "web": {
       "output": "static",
       "favicon": "./assets/images/favicon.png"
     },
+
     "plugins": [
       "expo-router",
       [
@@ -35,19 +52,22 @@
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#ffffff",
-          "dark": {
-            "backgroundColor": "#000000"
-          }
+          "dark": { "backgroundColor": "#000000" }
         }
       ]
     ],
+
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
     },
+
     "extra": {
       "EXPO_PUBLIC_SUPABASE_URL": "https://gizskyfynvyvhnaqcyax.supabase.co",
-      "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdpenNreWZ5bnZ5dmhuYXFjeWF4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA4NjQ2ODUsImV4cCI6MjA2NjQ0MDY4NX0.4CpLeX9NFoZLEbfwXkGSTOFwH7drrG7SeEHW51Ic_Bg"
+      "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdpenNreWZ5bnZ5dmhuYXFjeWF4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA4NjQ2ODUsImV4cCI6MjA2NjQ0MDY4NX0.4CpLeX9NFoZLEbfwXkGSTOFwH7drrG7SeEHW51Ic_Bg",
+      "EXPO_PUBLIC_SUPABASE_REDIRECT_URL": "liguster://auth/callback",
+      "router": {},
+      "eas": { "projectId": "1fb17243-5dde-4c9d-8c03-875f220b0791" }
     }
   }
 }

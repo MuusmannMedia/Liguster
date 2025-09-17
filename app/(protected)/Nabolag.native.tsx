@@ -53,15 +53,9 @@ const distances = [1, 2, 3, 5, 10, 20, 50];
 
 /* ─────────────────────────────  Små dialog-komponenter  ───────────────────────────── */
 function RadiusDialog({
-  visible,
-  value,
-  onClose,
-  onChange,
+  visible, value, onClose, onChange,
 }: {
-  visible: boolean;
-  value: number;
-  onClose: () => void;
-  onChange: (v: number) => void;
+  visible: boolean; value: number; onClose: () => void; onChange: (v: number) => void;
 }) {
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -72,10 +66,7 @@ function RadiusDialog({
             <TouchableOpacity
               key={d}
               style={[dialogStyles.option, d === value && dialogStyles.selectedOption]}
-              onPress={() => {
-                onChange(d);
-                onClose();
-              }}
+              onPress={() => { onChange(d); onClose(); }}
             >
               <Text style={{ fontWeight: d === value ? "bold" : "normal" }}>{d} km</Text>
             </TouchableOpacity>
@@ -90,15 +81,9 @@ function RadiusDialog({
 }
 
 function KategoriDialog({
-  visible,
-  value,
-  onClose,
-  onChange,
+  visible, value, onClose, onChange,
 }: {
-  visible: boolean;
-  value: string | null;
-  onClose: () => void;
-  onChange: (v: string | null) => void;
+  visible: boolean; value: string | null; onClose: () => void; onChange: (v: string | null) => void;
 }) {
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -109,10 +94,7 @@ function KategoriDialog({
             <TouchableOpacity
               key={k}
               style={[dialogStyles.option, k === value && dialogStyles.selectedOption]}
-              onPress={() => {
-                onChange(k);
-                onClose();
-              }}
+              onPress={() => { onChange(k); onClose(); }}
             >
               <Text style={{ fontWeight: k === value ? "bold" : "normal" }}>{k}</Text>
             </TouchableOpacity>
@@ -152,15 +134,20 @@ export default function Nabolag() {
   const [kategoriVisible, setKategoriVisible] = useState(false);
   const [valgtOpslag, setValgtOpslag] = useState<Post | null>(null);
 
-  // Dynamisk grid
+  // Layout: iPhone = fuld bredde m. padding; iPad = grid
   const { width } = useWindowDimensions();
-  const numColumns = width >= 900 ? 3 : width >= 650 ? 2 : 1;
-  const isGrid = numColumns > 1;
-  const ITEM_GAP = 18;
-  const SIDE_PADDING = isGrid ? 18 : 0;
+  const isPhone = width < 650;
+  const NUM_COLS = isPhone ? 1 : width >= 900 ? 3 : 2;
+  const GRID_GAP = 18;
+  const H_PADDING = 14; // samme som Foreninger
+
+  // ✅ NYT: Indre bredde (skærm - ydre padding) for korrekt centrering
+  const INNER_WIDTH = Math.max(0, width - H_PADDING * 2);
+  const isGrid = !isPhone;
   const itemWidth = isGrid
-    ? (width - SIDE_PADDING * 2 - ITEM_GAP * (numColumns - 1)) / numColumns
+    ? (INNER_WIDTH - GRID_GAP * (NUM_COLS - 1)) / NUM_COLS
     : "100%";
+  const imageHeight = isPhone ? 200 : 200;
 
   const handleOpretOpslag = async (postData: any) => {
     const success = await createPost(postData);
@@ -170,7 +157,7 @@ export default function Nabolag() {
   return (
     <View style={styles.root}>
       <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-        <View style={styles.content}>
+        <View style={[styles.content, { paddingHorizontal: H_PADDING }]}>
           {/* Primær CTA */}
           <TouchableOpacity
             style={styles.primaryCta}
@@ -197,7 +184,10 @@ export default function Nabolag() {
             >
               <Text style={styles.iconBtnText}>▼</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.radiusBtn} onPress={() => setRadiusVisible(true)}>
+            <TouchableOpacity
+              style={styles.radiusBtn}
+              onPress={() => setRadiusVisible(true)}
+            >
               <Text style={styles.radiusBtnText}>{radius} km</Text>
             </TouchableOpacity>
           </View>
@@ -208,37 +198,39 @@ export default function Nabolag() {
           ) : (
             <FlatList
               data={filteredPosts}
+              key={NUM_COLS}
               keyExtractor={(item) => item.id}
               style={{ width: "100%" }}
               contentContainerStyle={{
                 paddingTop: 10,
                 paddingBottom: 80,
-                paddingHorizontal: SIDE_PADDING,
-                alignItems: isGrid ? "center" : "stretch",
+                // ingen ekstra horizontal padding her – ydre container styrer det
               }}
               keyboardShouldPersistTaps="handled"
-              numColumns={numColumns}
-              columnWrapperStyle={isGrid ? { gap: ITEM_GAP } : undefined}
+              numColumns={NUM_COLS}
+              // ✅ Kun mellemrum mellem kolonner – ingen padding
+              columnWrapperStyle={isGrid ? { gap: GRID_GAP } : undefined}
               renderItem={({ item, index }) => (
                 <TouchableOpacity
-                  onPress={() => {
-                    setValgtOpslag(item);
-                    setDetaljeVisible(true);
+                  onPress={() => { setValgtOpslag(item); setDetaljeVisible(true); }}
+                  style={{
+                    width: isGrid ? (itemWidth as number) : "100%",
+                    marginBottom: index === filteredPosts.length - 1 ? 0 : 18,
                   }}
-                  style={{ width: itemWidth, marginBottom: index === filteredPosts.length - 1 ? 0 : 18 }}
                   activeOpacity={0.87}
                 >
                   <View style={styles.card}>
                     {!!item.image_url && (
-                      <Image source={{ uri: item.image_url }} style={styles.cardImage} />
+                      <Image
+                        source={{ uri: item.image_url }}
+                        style={[styles.cardImage, { height: imageHeight }]}
+                      />
                     )}
-
                     {!!item.kategori && (
                       <View style={styles.badge}>
                         <Text style={styles.badgeText}>{item.kategori}</Text>
                       </View>
                     )}
-
                     <Text style={styles.cardTitle}>{item.overskrift}</Text>
                     <Text style={styles.cardPlace}>{item.omraade}</Text>
                     <Text style={styles.cardTeaser} numberOfLines={1} ellipsizeMode="tail">
@@ -274,10 +266,7 @@ export default function Nabolag() {
         opslag={valgtOpslag}
         currentUserId={userId}
         onClose={() => setDetaljeVisible(false)}
-        onSendSvar={() => {
-          setDetaljeVisible(false);
-          setSvarVisible(true);
-        }}
+        onSendSvar={() => { setDetaljeVisible(false); setSvarVisible(true); }}
       />
 
       <SvarModal
@@ -287,15 +276,13 @@ export default function Nabolag() {
           if (!valgtOpslag || !userId || !valgtOpslag.user_id) return;
           const threadId =
             [userId, valgtOpslag.user_id].sort().join("_") + "_" + valgtOpslag.id;
-          await supabase.from("messages").insert([
-            {
-              thread_id: threadId,
-              sender_id: userId,
-              receiver_id: valgtOpslag.user_id,
-              post_id: valgtOpslag.id,
-              text: svarTekst,
-            },
-          ]);
+          await supabase.from("messages").insert([{
+            thread_id: threadId,
+            sender_id: userId,
+            receiver_id: valgtOpslag.user_id,
+            post_id: valgtOpslag.id,
+            text: svarTekst,
+          }]);
           setSvarVisible(false);
         }}
       />
@@ -313,7 +300,6 @@ export default function Nabolag() {
         onClose={() => setRadiusVisible(false)}
         onChange={handleRadiusChange}
       />
-
       <KategoriDialog
         visible={kategoriVisible}
         value={kategoriFilter}
@@ -329,7 +315,7 @@ export default function Nabolag() {
 /* ─────────────────────────────────────  Styles  ───────────────────────────────────── */
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: COLORS.bg },
-  content: { flex: 1, alignItems: "center", paddingHorizontal: 20, paddingTop: 40 },
+  content: { flex: 1, paddingTop: 40 }, // paddingHorizontal sættes dynamisk
 
   /* CTA */
   primaryCta: {
@@ -392,7 +378,7 @@ const styles = StyleSheet.create({
   },
   radiusBtnText: { color: COLORS.white, fontWeight: "bold", fontSize: 15, letterSpacing: 1 },
 
-  /* Kort / cards */
+  /* Cards */
   card: {
     width: "100%",
     backgroundColor: COLORS.white,
@@ -400,7 +386,7 @@ const styles = StyleSheet.create({
     padding: 12,
     ...SHADOW.card,
   },
-  cardImage: { width: "100%", height: 120, borderRadius: RADII.md, marginBottom: 10 },
+  cardImage: { width: "100%", borderRadius: RADII.md, marginBottom: 10, height: 160 },
   badge: {
     alignSelf: "flex-start",
     backgroundColor: COLORS.blueTint,

@@ -21,7 +21,7 @@ const COLORS = {
   bg: "#7C8996",
   card: "#fff",
   text: "#131921",
-  blue: "#131921", // primær blå
+  blue: "#131921",
   blueTint: "#25489022",
   red: "#e85c5c",
   white: "#fff",
@@ -57,32 +57,32 @@ export default function MineOpslagScreen() {
     visible: boolean;
     mode: "create" | "edit";
     initialData: Post | null;
-  }>({
-    visible: false,
-    mode: "create",
-    initialData: null,
-  });
+  }>({ visible: false, mode: "create", initialData: null });
 
-  // Grid layout
+  // Layout: iPhone = fuldbredde m. padding; iPad = grid
   const { width } = useWindowDimensions();
-  const numColumns = width >= 900 ? 3 : width >= 650 ? 2 : 1;
-  const isGrid = numColumns > 1;
-  const ITEM_GAP = 18;
-  const SIDE_PADDING = isGrid ? 18 : 0;
+  const isPhone = width < 650;
+  const NUM_COLS = isPhone ? 1 : width >= 900 ? 3 : 2;
+  const GRID_GAP = 18;
+  const H_PADDING = 14;
+
+  // ✅ Indre bredde = skærmbredde minus ydre padding
+  const INNER_WIDTH = Math.max(0, width - H_PADDING * 2);
+
+  const isGrid = !isPhone;
   const itemWidth = isGrid
-    ? (width - SIDE_PADDING * 2 - ITEM_GAP * (numColumns - 1)) / numColumns
+    ? (INNER_WIDTH - GRID_GAP * (NUM_COLS - 1)) / NUM_COLS
     : "100%";
+  const imageHeight = isPhone ? 160 : 200;
 
   const handleDialogSubmit = async (data: any) => {
-    const success = dialogState.mode === "create" ? await createPost(data) : await updatePost(data);
-    if (success) {
-      setDialogState({ visible: false, mode: "create", initialData: null });
-    }
+    const ok = dialogState.mode === "create" ? await createPost(data) : await updatePost(data);
+    if (ok) setDialogState({ visible: false, mode: "create", initialData: null });
   };
 
   return (
     <View style={styles.root}>
-      <View style={styles.content}>
+      <View style={[styles.content, { paddingHorizontal: H_PADDING }]}>
         {/* Primær CTA */}
         <TouchableOpacity
           style={styles.primaryCta}
@@ -98,28 +98,32 @@ export default function MineOpslagScreen() {
         ) : (
           <FlatList
             data={mineOpslag}
+            key={NUM_COLS}
             keyExtractor={(item) => item.id}
             style={{ width: "100%" }}
-            contentContainerStyle={{
-              paddingTop: 10,
-              paddingBottom: 80,
-              paddingHorizontal: SIDE_PADDING,
-              alignItems: isGrid ? "center" : "stretch",
-            }}
-            numColumns={numColumns}
-            columnWrapperStyle={isGrid ? { gap: ITEM_GAP } : undefined}
+            contentContainerStyle={{ paddingTop: 10, paddingBottom: 80 }}
+            numColumns={NUM_COLS}
+            // ✅ kun mellemrum mellem kolonner – ingen ekstra padding
+            columnWrapperStyle={isGrid ? { gap: GRID_GAP } : undefined}
             renderItem={({ item, index }) => (
-              <View style={{ width: itemWidth, marginBottom: index === mineOpslag.length - 1 ? 0 : 18 }}>
+              <View
+                style={{
+                  width: isGrid ? (itemWidth as number) : "100%",
+                  marginBottom: index === mineOpslag.length - 1 ? 0 : 18,
+                }}
+              >
                 <View style={styles.card}>
                   <TouchableOpacity
-                    onPress={() => {
-                      setValgtOpslag(item);
-                      setDetaljeVisible(true);
-                    }}
+                    onPress={() => { setValgtOpslag(item); setDetaljeVisible(true); }}
                     activeOpacity={0.85}
                     style={{ width: "100%" }}
                   >
-                    {!!item.image_url && <Image source={{ uri: item.image_url }} style={styles.cardImage} />}
+                    {!!item.image_url && (
+                      <Image
+                        source={{ uri: item.image_url }}
+                        style={[styles.cardImage, { height: imageHeight }]}
+                      />
+                    )}
 
                     {!!item.kategori && (
                       <View style={styles.badge}>
@@ -184,7 +188,7 @@ export default function MineOpslagScreen() {
 /* ─────────────────────────────── Styles ─────────────────────────────── */
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: COLORS.bg },
-  content: { flex: 1, alignItems: "center", paddingHorizontal: 20, paddingTop: 40 },
+  content: { flex: 1, paddingTop: 40 }, // vandret padding sættes dynamisk
 
   /* CTA */
   primaryCta: {
@@ -212,7 +216,7 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     ...SHADOW.card,
   },
-  cardImage: { width: "100%", height: 120, borderRadius: RADII.md, marginBottom: 10 },
+  cardImage: { width: "100%", borderRadius: RADII.md, marginBottom: 10, height: 160 }, // 160/200 ligesom de andre sider
   badge: {
     alignSelf: "flex-start",
     backgroundColor: COLORS.blueTint,
@@ -222,14 +226,20 @@ const styles = StyleSheet.create({
     marginBottom: 7,
   },
   badgeText: { color: COLORS.text, fontWeight: "bold", fontSize: 13 },
-  cardTitle: { fontWeight: "bold", fontSize: 16, marginBottom: 2, textDecorationLine: "underline", color: COLORS.text },
+  cardTitle: {
+    fontWeight: "bold",
+    fontSize: 16,
+    marginBottom: 2,
+    textDecorationLine: "underline",
+    color: COLORS.text,
+  },
   cardPlace: { fontSize: 14, color: "#222", marginBottom: 2 },
   cardTeaser: { fontSize: 14, color: "#444", marginBottom: 8 },
 
   /* Knaprække */
   actionsRow: { flexDirection: "row", alignSelf: "flex-end", marginTop: 8, gap: 10 },
 
-  /* Knapper – fælles og varianter */
+  /* Knapper */
   btn: {
     borderRadius: RADII.sm,
     paddingHorizontal: 20,

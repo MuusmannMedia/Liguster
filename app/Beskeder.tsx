@@ -11,157 +11,150 @@ import {
   View,
   useWindowDimensions,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import BottomNav from "../components/BottomNav";
 import useBeskeder from "../hooks/useBeskeder";
 
+type ThreadItem = {
+  thread_id: string;
+  post_id?: string | null;
+  sender_id: string;
+  receiver_id: string;
+  text?: string | null;
+  posts?: { overskrift?: string | null; omraade?: string | null } | null;
+};
+
+const BG = "#7C8996";
+
 export default function BeskederScreen() {
   const { userId, threads, loading, deleteThread, refresh } = useBeskeder();
-  const navigation = useNavigation<any>();
+  const nav = useNavigation<any>();
   const { width, height } = useWindowDimensions();
 
-  const isTablet =
-    (Platform.OS === "ios" && // @ts-ignore
-      (Platform as any).isPad) || Math.min(width, height) >= 768;
+  // 1 kolonne på mobil, 2 på små tablets, 3 på iPad 13"+
+  const isPhone = Math.min(width, height) < 650;
+  const NUM_COLS = isPhone ? 1 : width >= 1024 ? 3 : 2;
 
-  const OUTER_PADDING = 16;
+  const OUTER = 16;
   const GAP = 12;
-  const numColumns = isTablet ? 2 : 1;
-
+  const innerWidth = Math.max(0, width - OUTER * 2);
   const cardWidth =
-    numColumns === 1
-      ? Math.min(420, width - OUTER_PADDING * 2)
-      : (width - OUTER_PADDING * 2 - GAP) / 2;
+    NUM_COLS === 1
+      ? Math.min(420, innerWidth)
+      : (innerWidth - GAP * (NUM_COLS - 1)) / NUM_COLS;
 
+  // Genindlæs når skærmen får fokus
   useFocusEffect(
     useCallback(() => {
       refresh();
     }, [refresh])
   );
 
+  const renderItem = ({ item, index }: { item: ThreadItem; index: number }) => (
+    <View style={[styles.card, { width: cardWidth, marginBottom: index === threads.length - 1 ? 0 : 18 }]}>
+      <TouchableOpacity
+        style={{ flex: 1 }}
+        activeOpacity={0.85}
+        onPress={() =>
+          nav.navigate("ChatScreen", {
+            threadId: item.thread_id,
+            postId: item.post_id,
+            otherUserId: item.sender_id === userId ? item.receiver_id : item.sender_id,
+          })
+        }
+      >
+        <Text style={styles.title}>{item.posts?.overskrift || "UKENDT OPSLAG"}</Text>
+        {!!item.posts?.omraade && <Text style={styles.place}>{item.posts.omraade}</Text>}
+        {!!item.text && (
+          <Text style={styles.snippet} numberOfLines={2} ellipsizeMode="tail">
+            {item.text}
+          </Text>
+        )}
+      </TouchableOpacity>
+
+      <View style={styles.actionsRow}>
+        <TouchableOpacity
+          style={styles.readBtn}
+          onPress={() =>
+            nav.navigate("ChatScreen", {
+              threadId: item.thread_id,
+              postId: item.post_id,
+              otherUserId: item.sender_id === userId ? item.receiver_id : item.sender_id,
+            })
+          }
+        >
+          <Text style={styles.readBtnText}>LÆS BESKED</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.deleteBtn} onPress={() => deleteThread(item.thread_id)}>
+          <Text style={styles.deleteBtnText}>SLET</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
   return (
-    <View style={styles.root}>
+    <SafeAreaView
+      style={styles.safe}
+      edges={["left", "right", "bottom", "top"]} // gør baggrunden 100% ens
+    >
       {loading ? (
         <ActivityIndicator size="large" color="#254890" style={{ marginTop: 40 }} />
       ) : (
         <FlatList
-          data={threads}
-          key={numColumns}
-          keyExtractor={(item) => item.thread_id}
-          numColumns={numColumns}
+          data={threads as ThreadItem[]}
+          key={`cols-${NUM_COLS}`} // tving layoutskifte når kolonneantal ændres
+          keyExtractor={(it, i) => it?.thread_id ?? String(i)}
+          numColumns={NUM_COLS}
+          style={styles.list}
+
+          /* 🔒 Slå alle auto-insets fra for at undgå “ramme” første visning */
+          contentInsetAdjustmentBehavior="never"
+          automaticallyAdjustContentInsets={false}
+          automaticallyAdjustsScrollIndicatorInsets={false}
+          scrollIndicatorInsets={{ top: 0, left: 0, bottom: 0, right: 0 }}
+
+          /* Brug spacers i stedet for paddingTop/Bottom (iOS ændrer ikke disse) */
+          ListHeaderComponent={<View style={{ height: 16 }} />}
+          ListFooterComponent={<View style={{ height: 90 }} />}
+
           contentContainerStyle={{
-            paddingBottom: 100,
-            paddingTop: 60,
-            paddingHorizontal: OUTER_PADDING,
-            ...(numColumns === 1 ? { alignItems: "center" } : null),
+            paddingHorizontal: OUTER,
+            ...(NUM_COLS === 1 ? { alignItems: "center" } : null),
+            backgroundColor: BG,
           }}
-          columnWrapperStyle={
-            numColumns > 1 ? { justifyContent: "space-between", gap: GAP } : undefined
-          }
-          renderItem={({ item }) => (
-            <View style={[styles.card, { width: cardWidth }]}>
-              <TouchableOpacity
-                style={{ flex: 1 }}
-                activeOpacity={0.8}
-                onPress={() =>
-                  navigation.navigate("ChatScreen", {
-                    threadId: item.thread_id,
-                    postId: item.post_id,
-                    otherUserId:
-                      item.sender_id === userId ? item.receiver_id : item.sender_id,
-                  })
-                }
-              >
-                <View style={styles.titleBox}>
-                  <Text style={styles.titleText}>
-                    {item.posts?.overskrift || "UKENDT OPSLAG"}
-                  </Text>
-                </View>
-                <Text style={styles.omraade}>{item.posts?.omraade || ""}</Text>
-                <Text style={styles.besked} numberOfLines={2} ellipsizeMode="tail">
-                  {item.text}
-                </Text>
-              </TouchableOpacity>
-
-              <View style={styles.actionsRow}>
-                <TouchableOpacity
-                  style={styles.laesBtn}
-                  onPress={() =>
-                    navigation.navigate("ChatScreen", {
-                      threadId: item.thread_id,
-                      postId: item.post_id,
-                      otherUserId:
-                        item.sender_id === userId ? item.receiver_id : item.sender_id,
-                    })
-                  }
-                >
-                  <Text style={styles.laesBtnText}>LÆS BESKED</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.deleteBtn}
-                  onPress={() => deleteThread(item.thread_id)}
-                >
-                  <Text style={styles.deleteBtnText}>SLET</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
-          ListEmptyComponent={
-            <Text style={styles.emptyText}>Du har ingen beskeder endnu.</Text>
-          }
+          columnWrapperStyle={NUM_COLS > 1 ? { gap: GAP } : undefined}
+          renderItem={renderItem}
+          ListEmptyComponent={<Text style={styles.empty}>Du har ingen beskeder endnu.</Text>}
+          removeClippedSubviews={Platform.OS === "android"} // lidt jank-reducering
+          initialNumToRender={10}
+          windowSize={5}
         />
       )}
       <BottomNav />
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: "#7C8996",
-  },
+  safe: { flex: 1, backgroundColor: BG },
+  list: { flex: 1, width: "100%", backgroundColor: "transparent" },
 
   card: {
     backgroundColor: "#fff",
     borderRadius: 18,
     padding: 18,
-    marginBottom: 18,
     shadowColor: "#000",
     shadowOpacity: 0.08,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 2 },
     elevation: 3,
-    flexDirection: "column",
     alignItems: "flex-start",
   },
 
-  titleBox: {
-    backgroundColor: "#131921",
-    borderRadius: 8,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    marginBottom: 6,
-  },
-  titleText: {
-    fontSize: 15,
-    fontWeight: "bold",
-    color: "#fff",
-  },
-
-  omraade: {
-    color: "#222",
-    fontSize: 15,
-    fontWeight: "600",
-    marginBottom: 8,
-  },
-  besked: {
-    color: "#111",
-    fontSize: 15,
-    marginBottom: 18,
-    marginTop: 2,
-    lineHeight: 21,
-  },
+  title: { fontSize: 20, fontWeight: "700", color: "#131921", marginBottom: 6 },
+  place: { color: "#222", fontSize: 15, fontWeight: "600", marginBottom: 8 },
+  snippet: { color: "#111", fontSize: 15, marginBottom: 18, marginTop: 2, lineHeight: 21 },
 
   actionsRow: {
     flexDirection: "row",
@@ -171,38 +164,22 @@ const styles = StyleSheet.create({
     marginTop: 8,
     gap: 16,
   },
-  laesBtn: {
+  readBtn: {
     backgroundColor: "#131921",
     borderRadius: 8,
     paddingVertical: 8,
     paddingHorizontal: 14,
-    alignSelf: "flex-end",
     elevation: 1,
   },
-  laesBtnText: {
-    color: "#fff",
-    fontWeight: "bold",
-    fontSize: 13,
-    letterSpacing: 1,
-  },
+  readBtnText: { color: "#fff", fontWeight: "bold", fontSize: 13, letterSpacing: 1 },
   deleteBtn: {
     backgroundColor: "#e34141",
     borderRadius: 8,
     paddingVertical: 8,
     paddingHorizontal: 14,
-    alignSelf: "flex-end",
     elevation: 1,
   },
-  deleteBtnText: {
-    color: "#fff",
-    fontWeight: "bold",
-    fontSize: 13,
-    letterSpacing: 1,
-  },
+  deleteBtnText: { color: "#fff", fontWeight: "bold", fontSize: 13, letterSpacing: 1 },
 
-  emptyText: {
-    color: "#fff",
-    marginTop: 22,
-    alignSelf: "center",
-  },
+  empty: { color: "#fff", marginTop: 22, alignSelf: "center" },
 });

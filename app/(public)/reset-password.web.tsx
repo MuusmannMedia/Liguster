@@ -1,73 +1,58 @@
 // app/(public)/reset-password.web.tsx
-import React, { useEffect, useRef, useState } from "react";
-import { StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Head } from "expo-router";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { StyleSheet, Text, View } from "react-native";
 import { supabase } from "../../utils/supabase";
 
-type Mode = "request" | "change" | "error";
+// Lille helper: læs hash/query til et key/value-objekt
+const readParams = () => {
+  const out: Record<string, string> = {};
+  const raw = window.location.hash?.slice(1) || window.location.search?.slice(1) || "";
+  for (const part of raw.split("&")) {
+    const [k, v] = part.split("=");
+    if (k) out[decodeURIComponent(k)] = decodeURIComponent(v || "");
+  }
+  return out;
+};
 
 export default function ResetPasswordWeb() {
-  const [mode, setMode] = useState<Mode>("request");
-  const [errorText, setErrorText] = useState<string | null>(null);
+  // UI-mode: "request" = send mail, "change" = skift password
+  const [mode, setMode] = useState<"request" | "change">("request");
 
-  // Request form state
+  // --- Request (send mail)
   const [email, setEmail] = useState("");
   const [sending, setSending] = useState(false);
 
-  // Change form state
+  // --- Change (nyt password)
   const [newPass, setNewPass] = useState("");
   const [confirm, setConfirm] = useState("");
   const [changing, setChanging] = useState(false);
 
   const subRef = useRef<ReturnType<typeof supabase.auth.onAuthStateChange> | null>(null);
 
-  // 1) Indløs linket fra mailen ved første load
+  // 1) Prøv at se om brugeren lander med en aktiv session (via hash token)
+  // 2) Fald tilbage til "request" hvis der er otp-fejl i hash
   useEffect(() => {
-    const url = new URL(window.location.href);
-    const hash = url.hash ?? "";
-    const search = url.search ?? "";
-
-    // a) Hvis brugeren kommer med error i URL (fx udløbet link)
-    const hashParams = new URLSearchParams(hash.replace(/^#/, ""));
-    const err = hashParams.get("error") || hashParams.get("error_code");
-    const errDesc = hashParams.get("error_description");
-    if (err) {
-      setMode("error");
-      setErrorText(errDesc || err);
+    const params = readParams();
+    if (params.error) {
+      // Vis "request"-mode og en venlig besked (otp_expired/invalid)
+      setMode("request");
+      alert("Linket er udløbet eller ugyldigt. Anmod venligst om et nyt nulstillingslink.");
+      // Ryd hash, så back/refresh ikke bliver ved med at vise fejlen
+      history.replaceState(null, "", window.location.pathname);
       return;
     }
 
-    // b) Hvis der ligger tokens/indikatorer i URL'en → forsøg at indløse
-    const looksLikeRecovery =
-      /type=recovery|access_token=|refresh_token=/.test(hash + search);
+    // Har vi allerede en session?
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session) {
+        setMode("change");
+      }
+    });
 
-    if (looksLikeRecovery) {
-      (async () => {
-        const { data, error } = await supabase.auth
-          .exchangeCodeForSession(window.location.href)
-          .catch((e) => ({ data: null as any, error: e as Error }));
-
-        if (error) {
-          setMode("error");
-          setErrorText(error.message || "Ugyldigt eller udløbet link.");
-          return;
-        }
-
-        if (data?.session) {
-          setMode("change");
-          // Ryd tokens fra adresselinjen for pænhed
-          window.history.replaceState({}, "", "/reset-password");
-        }
-      })();
-    } else {
-      // Fallback: måske session allerede sat (genindlæsning)
-      supabase.auth.getSession().then(({ data }) => {
-        if (data.session) setMode("change");
-      });
-    }
-
-    // c) Lyt også på auth-state (ekstra sikkerhed)
+    // Lyt efter PASSWORD_RECOVERY event
     const { data: sub } = supabase.auth.onAuthStateChange((ev, session) => {
-      if (ev === "PASSWORD_RECOVERY" || session) {
+      if (ev === "PASSWORD_RECOVERY" || (session && session.user)) {
         setMode("change");
       }
     });
@@ -76,12 +61,14 @@ export default function ResetPasswordWeb() {
     return () => subRef.current?.subscription.unsubscribe();
   }, []);
 
+  const origin = useMemo(() => window.location.origin, []);
+
   const sendResetMail = async () => {
     const mail = email.trim();
     if (!mail) return;
     try {
       setSending(true);
-      const redirectTo = `${window.location.origin}/reset-password`;
+      const redirectTo = `${origin}/reset-password`;
       const { error } = await supabase.auth.resetPasswordForEmail(mail, { redirectTo });
       if (error) throw error;
       alert("Vi har sendt et link til at nulstille dit password. Tjek din mail.");
@@ -104,7 +91,7 @@ export default function ResetPasswordWeb() {
       alert("Dit password er opdateret. Du kan nu logge ind.");
       setNewPass("");
       setConfirm("");
-      // window.location.href = "/LoginScreen";
+      window.location.href = "/LoginScreen";
     } catch (e: any) {
       alert(e?.message ?? "Kunne ikke opdatere password. Prøv igen.");
     } finally {
@@ -114,97 +101,72 @@ export default function ResetPasswordWeb() {
 
   return (
     <View style={styles.page}>
+      {/* Sikrer korrekt mobil viewport & title så iOS ikke “låser” focus */}
+      <Head>
+        <title>Nyt kodeord</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+      </Head>
+
       <View style={styles.card}>
-        {mode === "error" ? (
+        <Text style={styles.h1}>Nyt kodeord</Text>
+        <Text style={styles.copy}>
+          Indtast dit nye ønskede kodeord nedenfor.
+        </Text>
+
+        {mode === "request" ? (
           <>
-            <Text style={styles.h1}>Nulstilling mislykkedes</Text>
-            <Text style={styles.copy}>
-              {errorText || "Linket er ugyldigt eller udløbet. Bestil en ny e-mail nedenfor."}
-            </Text>
-
-            {/* Tilbyd straks nyt link */}
-            <TextInput
+            {/* HTML input på web for 100% klik/fokus-sikkerhed */}
+            <input
+              type="email"
               placeholder="din@email.dk"
-              placeholderTextColor="#94a3b8"
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoComplete="email"
               value={email}
-              onChangeText={setEmail}
-              style={styles.input}
-            />
-            <TouchableOpacity
-              onPress={sendResetMail}
-              disabled={sending || !email.trim()}
-              style={[styles.btn, (!email.trim() || sending) && { opacity: 0.6 }]}
-            >
-              <Text style={styles.btnText}>{sending ? "Sender…" : "Send nyt reset-link"}</Text>
-            </TouchableOpacity>
-          </>
-        ) : mode === "request" ? (
-          <>
-            <Text style={styles.h1}>Nulstil password</Text>
-            <Text style={styles.copy}>
-              Indtast din e-mail. Vi sender dig et link til at nulstille dit password.
-            </Text>
-
-            <TextInput
-              placeholder="din@email.dk"
-              placeholderTextColor="#94a3b8"
-              keyboardType="email-address"
-              autoCapitalize="none"
+              onChange={(e) => setEmail(e.currentTarget.value)}
+              style={webStyles.input}
+              inputMode="email"
               autoComplete="email"
-              value={email}
-              onChangeText={setEmail}
-              style={styles.input}
             />
-            <TouchableOpacity
-              onPress={sendResetMail}
+            <button
+              onClick={sendResetMail}
               disabled={sending || !email.trim()}
-              style={[styles.btn, (!email.trim() || sending) && { opacity: 0.6 }]}
+              style={{ ...webStyles.btn, opacity: sending || !email.trim() ? 0.6 : 1 }}
             >
-              <Text style={styles.btnText}>{sending ? "Sender…" : "Send reset-mail"}</Text>
-            </TouchableOpacity>
+              {sending ? "Sender…" : "Send reset-mail"}
+            </button>
 
-            <View style={{ alignItems: "center", marginTop: 10 }}>
-              <a href="/LoginScreen" style={styles.link as any}>Tilbage til log ind</a>
-            </View>
+            <div style={{ textAlign: "center", marginTop: 10 }}>
+              <a href="/LoginScreen" style={webStyles.link}>Tilbage til log ind</a>
+            </div>
           </>
         ) : (
           <>
-            <Text style={styles.h1}>Vælg nyt password</Text>
-            <Text style={styles.copy}>Indtast dit nye password herunder.</Text>
-
-            <TextInput
-              placeholder="Nyt password"
-              placeholderTextColor="#94a3b8"
-              secureTextEntry
-              autoCapitalize="none"
+            <input
+              type="password"
+              placeholder="Nyt kodeord"
               value={newPass}
-              onChangeText={setNewPass}
-              style={styles.input}
+              onChange={(e) => setNewPass(e.currentTarget.value)}
+              style={webStyles.input}
+              autoComplete="new-password"
             />
-            <TextInput
-              placeholder="Gentag password"
-              placeholderTextColor="#94a3b8"
-              secureTextEntry
-              autoCapitalize="none"
+            <input
+              type="password"
+              placeholder="Bekræft nyt kodeord"
               value={confirm}
-              onChangeText={setConfirm}
-              style={styles.input}
+              onChange={(e) => setConfirm(e.currentTarget.value)}
+              style={webStyles.input}
+              autoComplete="new-password"
             />
-
-            <TouchableOpacity
-              onPress={changePassword}
+            <button
+              onClick={changePassword}
               disabled={changing || !newPass || !confirm}
-              style={[styles.btn, (changing || !newPass || !confirm) && { opacity: 0.6 }]}
+              style={{ ...webStyles.btn, opacity: changing || !newPass || !confirm ? 0.6 : 1 }}
             >
-              <Text style={styles.btnText}>{changing ? "Opdaterer…" : "Opdater password"}</Text>
-            </TouchableOpacity>
+              {changing ? "Gemmer…" : "Gem kodeord"}
+            </button>
 
-            <View style={{ alignItems: "center", marginTop: 10 }}>
-              <a href="/LoginScreen" style={styles.link as any}>Gå til log ind</a>
-            </View>
+            <div style={{ textAlign: "center", marginTop: 10 }}>
+              <a href="/LoginScreen" style={webStyles.link}>Gå til log ind</a>
+            </div>
           </>
         )}
       </View>
@@ -231,24 +193,36 @@ const styles = StyleSheet.create({
     padding: 20,
     gap: 12,
   },
-  h1: { color: "#e5e7eb", fontSize: 22, fontWeight: "800" },
-  copy: { color: "#94a3b8" },
+  h1: { color: "#e5e7eb", fontSize: 22, fontWeight: "800", textAlign: "center" },
+  copy: { color: "#94a3b8", textAlign: "center" },
+});
+
+// RENE WEB-STYLES til <input>/<button>/<a>
+const webStyles: Record<string, React.CSSProperties> = {
   input: {
-    backgroundColor: "#0b1220",
-    borderWidth: 1,
-    borderColor: "#233244",
-    color: "#e5e7eb",
+    width: "100%",
     borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    border: "1px solid #233244",
+    background: "#0b1220",
+    color: "#e5e7eb",
+    padding: "12px 12px",
+    outline: "none",
+    fontSize: 16,
+    WebkitAppearance: "none",
   },
   btn: {
-    backgroundColor: "#22c55e",
+    width: "100%",
     borderRadius: 10,
-    paddingVertical: 12,
-    alignItems: "center",
-    marginTop: 4,
+    border: 0,
+    background: "#22c55e",
+    color: "#0b1220",
+    fontWeight: 800,
+    padding: "12px 12px",
+    cursor: "pointer",
   },
-  btnText: { color: "#0b1220", fontWeight: "800" },
-  link: { color: "#93c5fd", textDecoration: "underline", fontSize: 14 },
-});
+  link: {
+    color: "#93c5fd",
+    textDecoration: "underline",
+    fontSize: 14,
+  },
+};

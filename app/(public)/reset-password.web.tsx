@@ -3,72 +3,71 @@ import React, { useEffect, useRef, useState } from "react";
 import { StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { supabase } from "../../utils/supabase";
 
-// Læs URL-hash som key/value
-function parseHashParams(hash: string): Record<string, string> {
-  const h = hash.replace(/^#/, "");
-  const out: Record<string, string> = {};
-  for (const part of h.split("&")) {
-    const [k, v] = part.split("=");
-    if (k) out[decodeURIComponent(k)] = decodeURIComponent(v ?? "");
-  }
-  return out;
-}
+type Mode = "request" | "change" | "error";
 
 export default function ResetPasswordWeb() {
-  const [mode, setMode] = useState<"request" | "change">("request");
+  const [mode, setMode] = useState<Mode>("request");
+  const [errorText, setErrorText] = useState<string | null>(null);
 
-  // Request form
+  // Request form state
   const [email, setEmail] = useState("");
   const [sending, setSending] = useState(false);
 
-  // Change form
+  // Change form state
   const [newPass, setNewPass] = useState("");
   const [confirm, setConfirm] = useState("");
   const [changing, setChanging] = useState(false);
 
   const subRef = useRef<ReturnType<typeof supabase.auth.onAuthStateChange> | null>(null);
 
+  // 1) Indløs linket fra mailen ved første load
   useEffect(() => {
-    // 1) Hvis vi lander fra mail-linket med tokens i hash → sæt session
-    const params = parseHashParams(window.location.hash || "");
-    const access_token = params["access_token"];
-    const refresh_token = params["refresh_token"];
-    const error = params["error"];
-    const error_description = params["error_description"];
+    const url = new URL(window.location.href);
+    const hash = url.hash ?? "";
+    const search = url.search ?? "";
 
-    if (error) {
-      alert(error_description || error);
+    // a) Hvis brugeren kommer med error i URL (fx udløbet link)
+    const hashParams = new URLSearchParams(hash.replace(/^#/, ""));
+    const err = hashParams.get("error") || hashParams.get("error_code");
+    const errDesc = hashParams.get("error_description");
+    if (err) {
+      setMode("error");
+      setErrorText(errDesc || err);
+      return;
     }
 
-    (async () => {
-      try {
-        if (access_token && refresh_token) {
-          const { error: setErr } = await supabase.auth.setSession({
-            access_token,
-            refresh_token,
-          });
-          if (setErr) throw setErr;
+    // b) Hvis der ligger tokens/indikatorer i URL'en → forsøg at indløse
+    const looksLikeRecovery =
+      /type=recovery|access_token=|refresh_token=/.test(hash + search);
 
-          // Ryd hash i adresselinjen
-          window.history.replaceState({}, document.title, window.location.pathname);
-          setMode("change");
+    if (looksLikeRecovery) {
+      (async () => {
+        const { data, error } = await supabase.auth
+          .exchangeCodeForSession(window.location.href)
+          .catch((e) => ({ data: null as any, error: e as Error }));
+
+        if (error) {
+          setMode("error");
+          setErrorText(error.message || "Ugyldigt eller udløbet link.");
           return;
         }
-      } catch (e: any) {
-        // Fald tilbage til request-mode med besked
-        console.warn("setSession failed", e?.message ?? e);
-      }
 
-      // 2) Hvis siden genindlæses og vi allerede HAR en session → change-mode
-      const { data } = await supabase.auth.getSession();
-      if (data.session) {
-        setMode("change");
-      }
-    })();
+        if (data?.session) {
+          setMode("change");
+          // Ryd tokens fra adresselinjen for pænhed
+          window.history.replaceState({}, "", "/reset-password");
+        }
+      })();
+    } else {
+      // Fallback: måske session allerede sat (genindlæsning)
+      supabase.auth.getSession().then(({ data }) => {
+        if (data.session) setMode("change");
+      });
+    }
 
-    // 3) Lyt efter events (ekstra sikkerhed hvis lib selv fanger hash)
+    // c) Lyt også på auth-state (ekstra sikkerhed)
     const { data: sub } = supabase.auth.onAuthStateChange((ev, session) => {
-      if (ev === "PASSWORD_RECOVERY" || (session && session.user)) {
+      if (ev === "PASSWORD_RECOVERY" || session) {
         setMode("change");
       }
     });
@@ -96,9 +95,8 @@ export default function ResetPasswordWeb() {
 
   const changePassword = async () => {
     const pass = newPass.trim();
-    if (!pass || pass.length < 8) return alert("Vælg et password på mindst 8 tegn.");
+    if (pass.length < 8) return alert("Vælg et password på mindst 8 tegn.");
     if (pass !== confirm.trim()) return alert("Passwords er ikke ens.");
-
     try {
       setChanging(true);
       const { error } = await supabase.auth.updateUser({ password: pass });
@@ -117,7 +115,33 @@ export default function ResetPasswordWeb() {
   return (
     <View style={styles.page}>
       <View style={styles.card}>
-        {mode === "request" ? (
+        {mode === "error" ? (
+          <>
+            <Text style={styles.h1}>Nulstilling mislykkedes</Text>
+            <Text style={styles.copy}>
+              {errorText || "Linket er ugyldigt eller udløbet. Bestil en ny e-mail nedenfor."}
+            </Text>
+
+            {/* Tilbyd straks nyt link */}
+            <TextInput
+              placeholder="din@email.dk"
+              placeholderTextColor="#94a3b8"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoComplete="email"
+              value={email}
+              onChangeText={setEmail}
+              style={styles.input}
+            />
+            <TouchableOpacity
+              onPress={sendResetMail}
+              disabled={sending || !email.trim()}
+              style={[styles.btn, (!email.trim() || sending) && { opacity: 0.6 }]}
+            >
+              <Text style={styles.btnText}>{sending ? "Sender…" : "Send nyt reset-link"}</Text>
+            </TouchableOpacity>
+          </>
+        ) : mode === "request" ? (
           <>
             <Text style={styles.h1}>Nulstil password</Text>
             <Text style={styles.copy}>
@@ -134,7 +158,6 @@ export default function ResetPasswordWeb() {
               onChangeText={setEmail}
               style={styles.input}
             />
-
             <TouchableOpacity
               onPress={sendResetMail}
               disabled={sending || !email.trim()}

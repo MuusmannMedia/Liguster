@@ -1,99 +1,141 @@
-// app/(public)/reset-password.web.tsx
-import React, { useEffect, useMemo, useState } from "react";
-import { supabase } from "../../utils/supabase";
+// app/reset-password.web.tsx
+import { useLocalSearchParams, usePathname, useRouter } from 'expo-router';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { supabase } from '../utils/supabase';
 
 export default function ResetPasswordWeb() {
-  const [phase, setPhase] = useState<"checking"|"ready"|"saving"|"success"|"error">("checking");
-  const [p1, setP1] = useState("");
-  const [p2, setP2] = useState("");
-  const [err, setErr] = useState<string | null>(null);
+  const router = useRouter();
+  const pathname = usePathname();
+  const params = useLocalSearchParams(); // fanger ?code=... i PKCE
+  const [checking, setChecking] = useState(true);
+  const [sessionReady, setSessionReady] = useState(false);
 
-  const canSave = useMemo(() => p1.length >= 8 && p1 === p2, [p1, p2]);
+  const [p1, setP1] = useState('');
+  const [p2, setP2] = useState('');
+  const [saving, setSaving] = useState(false);
 
-  // 1) Byt kode fra URL til session
+  const canSave = useMemo(() => p1.length >= 8 && p1 === p2 && !saving, [p1, p2, saving]);
+
   useEffect(() => {
-    (async () => {
-      try {
-        await supabase.auth.exchangeCodeForSession(window.location.href);
-        setPhase("ready");
-      } catch (e: any) {
-        setErr(e?.message ?? "Kunne ikke starte nulstilling.");
-        setPhase("error");
-      }
-    })();
-  }, []);
+    let cancelled = false;
 
-  // 2) Gem nyt password
+    async function ensureSession() {
+      try {
+        setChecking(true);
+
+        // 1) Har vi allerede en session (implicit hash kan være auto-processeret)?
+        const { data } = await supabase.auth.getSession();
+        if (data.session) {
+          if (!cancelled) setSessionReady(true);
+          return;
+        }
+
+        // 2) PKCE: Hvis der er ?code= i URL, byt den til en session
+        const hasPKCE = typeof params?.code === 'string' && params.code.length > 0;
+        if (hasPKCE) {
+          try {
+            await supabase.auth.exchangeCodeForSession(window.location.href);
+          } catch (e) {
+            // fortsæt – måske implicit
+          }
+        } else {
+          // 3) Belt & suspenders: ved implicit burde supabase selv detektere hash'en,
+          // men vi prøver at trigge et refresh af sessionen.
+          // (Ikke strengt nødvendigt, men har hjulpet i visse SPA-opsætninger)
+          await new Promise((r) => setTimeout(r, 50));
+        }
+
+        const { data: data2 } = await supabase.auth.getSession();
+        if (!cancelled) setSessionReady(!!data2.session);
+      } finally {
+        if (!cancelled) setChecking(false);
+      }
+    }
+
+    ensureSession();
+    return () => {
+      cancelled = true;
+    };
+  }, [pathname, params?.code]);
+
   const onSave = async () => {
     if (!canSave) return;
     try {
-      setPhase("saving");
+      setSaving(true);
       const { error } = await supabase.auth.updateUser({ password: p1.trim() });
       if (error) throw error;
-      setPhase("success");
+      Alert.alert('Succes', 'Dit kodeord er opdateret.');
+      router.replace('/LoginScreen');
     } catch (e: any) {
-      setErr(e?.message ?? "Kunne ikke gemme password.");
-      setPhase("error");
+      Alert.alert('Fejl', e?.message ?? 'Kunne ikke opdatere kodeord.');
+    } finally {
+      setSaving(false);
     }
   };
 
-  // Simple, ren HTML for maksimal robusthed på web
+  // UI
+  if (checking) {
+    return (
+      <View style={styles.root}>
+        <Text style={styles.title}>Nyt kodeord</Text>
+        <Text style={styles.info}>Kontrollerer nulstillingslink…</Text>
+      </View>
+    );
+  }
+
+  if (!sessionReady) {
+    return (
+      <View style={styles.root}>
+        <Text style={styles.title}>Nyt kodeord</Text>
+        <Text style={styles.info}>
+          Vi kunne ikke finde en aktiv nulstillingssession. Åbn venligst
+          nulstillingslinket fra din mail igen og kom straks herind.
+        </Text>
+        <TouchableOpacity style={styles.btn} onPress={() => router.replace('/LoginScreen')}>
+          <Text style={styles.btnText}>TIL LOGIN</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
   return (
-    <div style={page}>
-      <div style={card}>
-        <h1 style={h1}>Nyt kodeord</h1>
-
-        {phase === "checking" && <p>Henter nulstillingssession…</p>}
-
-        {phase === "error" && (
-          <>
-            <p style={{ color: "#fca5a5" }}>
-              {err || "Vi kunne ikke finde en aktiv nulstillingssession."}
-            </p>
-            <a href="/LoginScreen" style={btnGhost}>Til login</a>
-          </>
-        )}
-
-        {phase === "ready" && (
-          <>
-            <p>Indtast dit nye ønskede kodeord nedenfor.</p>
-            <input
-              type="password"
-              placeholder="Nyt kodeord"
-              value={p1}
-              onChange={(e) => setP1(e.target.value)}
-              style={input}
-            />
-            <input
-              type="password"
-              placeholder="Gentag kodeord"
-              value={p2}
-              onChange={(e) => setP2(e.target.value)}
-              style={input}
-            />
-            <button onClick={onSave} disabled={!canSave} style={btnPrimary}>
-              Gem nyt kodeord
-            </button>
-          </>
-        )}
-
-        {phase === "saving" && <p>Gemmer…</p>}
-
-        {phase === "success" && (
-          <>
-            <p style={{ color: "#16a34a", fontWeight: 700 }}>Dit kodeord er opdateret.</p>
-            <a href="/LoginScreen" style={btnPrimary}>Til login</a>
-          </>
-        )}
-      </div>
-    </div>
+    <View style={styles.root}>
+      <Text style={styles.title}>Vælg nyt kodeord</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="Nyt kodeord"
+        placeholderTextColor="#9aa3ad"
+        secureTextEntry
+        value={p1}
+        onChangeText={setP1}
+        returnKeyType="next"
+      />
+      <TextInput
+        style={styles.input}
+        placeholder="Gentag kodeord"
+        placeholderTextColor="#9aa3ad"
+        secureTextEntry
+        value={p2}
+        onChangeText={setP2}
+        returnKeyType="go"
+        onSubmitEditing={onSave}
+      />
+      <TouchableOpacity style={[styles.btn, !canSave && { opacity: 0.6 }]} onPress={onSave} disabled={!canSave}>
+        <Text style={styles.btnText}>{saving ? 'Gemmer…' : 'Gem kodeord'}</Text>
+      </TouchableOpacity>
+    </View>
   );
 }
 
-/* ——— inline styles for simplicity ——— */
-const page: React.CSSProperties = { minHeight: "100vh", background: "#0f1623", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 };
-const card: React.CSSProperties = { width: 420, maxWidth: "100%", background: "#111827", color: "#e5e7eb", borderRadius: 16, padding: 22, boxShadow: "0 6px 24px rgba(0,0,0,.25)" };
-const h1: React.CSSProperties = { margin: "0 0 12px", fontSize: 28, fontWeight: 800 };
-const input: React.CSSProperties = { width: "100%", padding: "12px 14px", borderRadius: 10, border: "1px solid #334155", marginBottom: 10, outline: "none", fontSize: 16 };
-const btnPrimary: React.CSSProperties = { display: "inline-block", padding: "12px 16px", borderRadius: 12, background: "#fff", color: "#0f1623", fontWeight: 800, textDecoration: "none", border: 0, cursor: "pointer", marginTop: 6 };
-const btnGhost: React.CSSProperties = { display: "inline-block", padding: "10px 14px", borderRadius: 12, background: "transparent", color: "#e5e7eb", border: "1px solid #475569", textDecoration: "none", marginTop: 8 };
+const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: '#0f1623', alignItems: 'center', justifyContent: 'center', padding: 24 },
+  title: { color: '#fff', fontSize: 28, fontWeight: '800', textAlign: 'center', marginBottom: 18 },
+  info: { color: '#d1d5db', fontSize: 16, textAlign: 'center', maxWidth: 520, marginBottom: 16 },
+  input: {
+    backgroundColor: '#ffffff', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14,
+    fontSize: 16, marginBottom: 12, width: 320,
+  },
+  btn: { backgroundColor: '#ffffff', borderRadius: 14, paddingVertical: 16, alignItems: 'center', marginTop: 6, width: 220 },
+  btnText: { color: '#0f1623', fontWeight: '800', fontSize: 16, letterSpacing: 0.3 },
+});

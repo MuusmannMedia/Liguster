@@ -15,11 +15,12 @@ export default function LoginScreenWeb() {
   const [email, setEmail]       = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading]   = useState(false);
+  const [sendingReset, setSendingReset] = useState(false);
+  const [msg, setMsg]           = useState<string | null>(null);
   const [err, setErr]           = useState<string | null>(null);
   const [showPw, setShowPw]     = useState(false);
 
   useEffect(() => {
-    // Sikr at intet forhindrer scroll/klik
     document.documentElement.style.overflow = "auto";
     document.body.style.overflow = "auto";
     document.body.style.pointerEvents = "auto";
@@ -29,15 +30,17 @@ export default function LoginScreenWeb() {
   const submit = useCallback(async (e?: React.FormEvent) => {
     e?.preventDefault();
     setErr(null);
+    setMsg(null);
 
-    if (!email || !password) {
-      setErr("Udfyld både email og password.");
+    const eMail = email.trim().toLowerCase();
+    if (!eMail || !password) {
+      setErr("Udfyld både e-mail og adgangskode.");
       return;
     }
 
     try {
       setLoading(true);
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      const { error } = await supabase.auth.signInWithPassword({ email: eMail, password });
       if (error) throw error;
       router.replace("/(protected)/Nabolag");
     } catch (ex: any) {
@@ -46,6 +49,29 @@ export default function LoginScreenWeb() {
       setLoading(false);
     }
   }, [email, password, router]);
+
+  const sendReset = useCallback(async () => {
+    setErr(null);
+    setMsg(null);
+
+    const eMail = email.trim().toLowerCase();
+    if (!eMail) {
+      setErr("Skriv din e-mail i feltet først.");
+      return;
+    }
+    try {
+      setSendingReset(true);
+      const { error } = await supabase.auth.resetPasswordForEmail(eMail, {
+        redirectTo: "https://liguster-app.dk/reset-password",
+      });
+      if (error) throw error;
+      setMsg("Hvis e-mailen findes hos os, har vi sendt et link til at nulstille dit kodeord.");
+    } catch (ex: any) {
+      setErr(ex?.message ?? "Kunne ikke sende mail.");
+    } finally {
+      setSendingReset(false);
+    }
+  }, [email]);
 
   return (
     <div style={styles.page}>
@@ -59,6 +85,7 @@ export default function LoginScreenWeb() {
         <h1 style={styles.title}>Log ind</h1>
 
         {err ? <div style={styles.error}>{err}</div> : null}
+        {msg ? <div style={styles.info}>{msg}</div> : null}
 
         <label htmlFor="email" style={styles.label}>Email</label>
         <input
@@ -73,9 +100,8 @@ export default function LoginScreenWeb() {
           style={styles.input}
         />
 
-        <label htmlFor="password" style={styles.label}>Password</label>
+        <label htmlFor="password" style={styles.label}>Adgangskode</label>
 
-        {/* Samme bredde som email: knappen ligger ovenpå til højre */}
         <div style={styles.pwWrap}>
           <input
             id="password"
@@ -85,14 +111,13 @@ export default function LoginScreenWeb() {
             placeholder="••••••••"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            // ekstra paddingRight så teksten ikke ligger under knappen
             style={{ ...styles.input, paddingRight: styles.toggleSize.width + 10 }}
           />
           <button
             type="button"
             onClick={() => setShowPw(s => !s)}
             style={{ ...styles.togglePw, width: styles.toggleSize.width }}
-            aria-label={showPw ? "Skjul password" : "Vis password"}
+            aria-label={showPw ? "Skjul adgangskode" : "Vis adgangskode"}
           >
             {showPw ? "Skjul" : "Vis"}
           </button>
@@ -101,6 +126,12 @@ export default function LoginScreenWeb() {
         <button type="submit" disabled={loading} style={styles.button}>
           {loading ? "Logger ind…" : "LOG IND"}
         </button>
+
+        <div style={styles.footerRow}>
+          <button type="button" onClick={sendReset} disabled={sendingReset} style={styles.footerBtn}>
+            {sendingReset ? "Sender link…" : "Send reset-link på mail"}
+          </button>
+        </div>
 
         <div style={styles.footerRow}>
           <Link href="/" style={styles.footerLink}>‹ Tilbage</Link>
@@ -125,10 +156,12 @@ const THEME = {
   errBg: "#FEE2E2",
   errText: "#7f1d1d",
   errBorder: "#ef4444",
+  infoBg: "#DCFCE7",
+  infoText: "#14532d",
+  infoBorder: "#22c55e",
 };
 
 const styles: Record<string, any> = {
-  // størrelse på “Vis/Skjul”-knappen (bruges to steder)
   toggleSize: { width: 64 },
 
   page: {
@@ -178,11 +211,7 @@ const styles: Record<string, any> = {
     boxSizing: "border-box" as const,
   },
 
-  // Password: gør knappen absolut, så rækken holder samme bredde som email
-  pwWrap: {
-    position: "relative" as const,
-    marginBottom: 14,
-  },
+  pwWrap: { position: "relative" as const, marginBottom: 14 },
   togglePw: {
     position: "absolute" as const,
     top: 0,
@@ -200,7 +229,7 @@ const styles: Record<string, any> = {
     width: "100%",
     height: 52,
     borderRadius: 14,
-    border: "0",
+    border: 0,
     background: THEME.btnBg,
     color: THEME.btnText,
     fontWeight: 900,
@@ -208,6 +237,7 @@ const styles: Record<string, any> = {
     cursor: "pointer",
     marginTop: 4,
   },
+
   error: {
     background: THEME.errBg,
     color: THEME.errText,
@@ -218,10 +248,31 @@ const styles: Record<string, any> = {
     fontSize: 13,
     fontWeight: 700,
   },
+  info: {
+    background: THEME.infoBg,
+    color: THEME.infoText,
+    border: `1px solid ${THEME.infoBorder}`,
+    padding: "8px 10px",
+    borderRadius: 10,
+    marginBottom: 12,
+    fontSize: 13,
+    fontWeight: 700,
+  },
+
   footerRow: {
-    marginTop: 12,
+    marginTop: 10,
     display: "flex",
     justifyContent: "center",
+  },
+  footerBtn: {
+    appearance: "none",
+    background: "transparent",
+    border: 0,
+    color: "#9fb3ff",
+    textDecoration: "underline",
+    fontWeight: 800,
+    fontSize: 13,
+    cursor: "pointer",
   },
   footerLink: {
     color: "#9fb3ff",

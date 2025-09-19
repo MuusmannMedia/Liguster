@@ -1,10 +1,9 @@
 // app/(public)/reset-password.web.tsx
 import { Head } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
 import { supabase } from "../../utils/supabase";
 
-/** Læs hash/query params til et key/value-objekt */
+/* Helpers */
 const readParams = () => {
   const out: Record<string, string> = {};
   const raw =
@@ -18,24 +17,17 @@ const readParams = () => {
   }
   return out;
 };
-
-/** Fjern hash/query fra URL (beholder samme path) */
 const stripUrl = () => {
-  const cleanUrl = window.location.pathname; // fx /reset-password
   try {
-    history.replaceState(null, "", cleanUrl);
+    history.replaceState(null, "", window.location.pathname);
   } catch {}
 };
 
 export default function ResetPasswordWeb() {
-  // UI-mode: "request" = send mail, "change" = skift password
   const [mode, setMode] = useState<"request" | "change">("request");
-
-  // --- Request (send mail)
   const [email, setEmail] = useState("");
   const [sending, setSending] = useState(false);
 
-  // --- Change (nyt password)
   const [newPass, setNewPass] = useState("");
   const [confirm, setConfirm] = useState("");
   const [changing, setChanging] = useState(false);
@@ -46,7 +38,6 @@ export default function ResetPasswordWeb() {
   useEffect(() => {
     const params = readParams();
 
-    // 1) Håndtér direkte fejl fra linket (fx otp_expired / invalid)
     if (params.error) {
       const msg =
         params.error_description?.replace(/\+/g, " ") ||
@@ -57,7 +48,6 @@ export default function ResetPasswordWeb() {
       return;
     }
 
-    // 2) Etabler session (PKCE & implicit)
     (async () => {
       try {
         await supabase.auth.exchangeCodeForSession(window.location.href).catch(() => {});
@@ -69,7 +59,6 @@ export default function ResetPasswordWeb() {
       } catch {}
     })();
 
-    // 3) Lyt efter PASSWORD_RECOVERY / login
     const { data: subscription } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === "PASSWORD_RECOVERY" || session?.user) {
         setMode("change");
@@ -117,25 +106,18 @@ export default function ResetPasswordWeb() {
   };
 
   return (
-    <View id="click-scope" style={styles.page}>
-      {/* Meta + CSS der sikrer klik/fokus på iOS/web */}
+    // @ts-ignore – vi bruger ren HTML på web her
+    <div id="reset-top-overlay" style={styles.page}>
       <Head>
         <title>Nyt kodeord</title>
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
-        <style>{`
-          html, body, #root, #__next { height: 100%; }
-          body { margin: 0; overflow: auto !important; -webkit-overflow-scrolling: touch; }
-          /* Sørg for at intet overlay i appens layout blokerer klik på denne side */
-          #click-scope, #click-scope * { pointer-events: auto !important; }
-          /* Læg inputs/knapper øverst i stacking order (hjælper i iOS Safari) */
-          #click-scope input, #click-scope button { position: relative; z-index: 2; }
-        `}</style>
+        <style>{globalCss}</style>
       </Head>
 
-      <View style={styles.card}>
-        <Text style={styles.h1}>Nyt kodeord</Text>
-        <Text style={styles.copy}>Indtast dit nye ønskede kodeord nedenfor.</Text>
+      <div style={styles.card}>
+        <h1 style={styles.h1}>Nyt kodeord</h1>
+        <p style={styles.copy}>Indtast dit nye ønskede kodeord nedenfor.</p>
 
         {mode === "request" ? (
           <>
@@ -144,20 +126,20 @@ export default function ResetPasswordWeb() {
               placeholder="din@email.dk"
               value={email}
               onChange={(e) => setEmail(e.currentTarget.value)}
-              style={webStyles.input}
+              style={styles.input}
               inputMode="email"
               autoComplete="email"
             />
             <button
               onClick={sendResetMail}
               disabled={sending || !email.trim()}
-              style={{ ...webStyles.btn, opacity: sending || !email.trim() ? 0.6 : 1 }}
+              style={{ ...styles.btn, opacity: sending || !email.trim() ? 0.6 : 1 }}
             >
               {sending ? "Sender…" : "Send reset-mail"}
             </button>
 
             <div style={{ textAlign: "center", marginTop: 10 }}>
-              <a href="/LoginScreen" style={webStyles.link}>Tilbage til log ind</a>
+              <a href="/LoginScreen" style={styles.link}>Tilbage til log ind</a>
             </div>
           </>
         ) : (
@@ -167,7 +149,7 @@ export default function ResetPasswordWeb() {
               placeholder="Nyt kodeord"
               value={newPass}
               onChange={(e) => setNewPass(e.currentTarget.value)}
-              style={webStyles.input}
+              style={styles.input}
               autoComplete="new-password"
             />
             <input
@@ -175,58 +157,65 @@ export default function ResetPasswordWeb() {
               placeholder="Bekræft nyt kodeord"
               value={confirm}
               onChange={(e) => setConfirm(e.currentTarget.value)}
-              style={webStyles.input}
+              style={styles.input}
               autoComplete="new-password"
             />
             <button
               onClick={changePassword}
               disabled={changing || !newPass || !confirm}
-              style={{ ...webStyles.btn, opacity: changing || !newPass || !confirm ? 0.6 : 1 }}
+              style={{ ...styles.btn, opacity: changing || !newPass || !confirm ? 0.6 : 1 }}
             >
               {changing ? "Gemmer…" : "Gem kodeord"}
             </button>
 
             <div style={{ textAlign: "center", marginTop: 10 }}>
-              <a href="/LoginScreen" style={webStyles.link}>Gå til log ind</a>
+              <a href="/LoginScreen" style={styles.link}>Gå til log ind</a>
             </div>
           </>
         )}
-      </View>
-    </View>
+      </div>
+    </div>
   );
 }
 
-const styles = StyleSheet.create({
+/* —————— Global CSS (kun for denne side) —————— */
+const globalCss = `
+  html, body, #root, #__next { height: 100%; }
+  body { margin: 0; background: #0f1623; overflow: auto !important; -webkit-overflow-scrolling: touch; }
+  /* Slå ALLE overlays/transitions/gestures fra og tving pointer-events til at virke */
+  *, *::before, *::after { transition: none !important; animation: none !important; }
+  #reset-top-overlay, #reset-top-overlay * { pointer-events: auto !important; -webkit-tap-highlight-color: transparent; }
+  /* Skjul eventuelle fast/fixed navbars/overlays fra app-layout */
+  header, nav, .nav, .topbar, .bottom-nav, [data-footer], [role="banner"], [role="navigation"] { display: none !important; }
+`;
+
+/* —————— Styles (ren CSS-in-JS for HTML elements) —————— */
+const styles: Record<string, React.CSSProperties> = {
   page: {
-    flex: 1,
-    backgroundColor: "#0f1623",
+    position: "fixed",
+    inset: 0,
+    isolation: "isolate",      // egen stacking context
+    zIndex: 2147483647,        // helt øverst
+    background: "#0f1623",
+    display: "flex",
     alignItems: "center",
     justifyContent: "center",
     padding: 24,
-    minHeight: "100vh",
-    // hjælp hvis et globalt element har høj z-index:
-    zIndex: 0,
   },
   card: {
     width: "100%",
     maxWidth: 460,
-    backgroundColor: "#111827",
-    borderWidth: 1,
-    borderColor: "#1f2937",
+    background: "#111827",
+    border: "1px solid #1f2937",
     borderRadius: 16,
     padding: 20,
-    gap: 12,
+    boxShadow: "0 14px 40px rgba(0,0,0,0.35)",
   },
-  h1: { color: "#e5e7eb", fontSize: 22, fontWeight: "800", textAlign: "center" },
-  copy: { color: "#94a3b8", textAlign: "center" },
-});
-
-// Rene web-styles til <input>/<button>/<a>
-const webStyles: Record<string, React.CSSProperties> = {
+  h1: { color: "#e5e7eb", fontSize: 22, fontWeight: 800, textAlign: "center", margin: "0 0 8px" },
+  copy: { color: "#94a3b8", textAlign: "center", margin: "0 0 12px" },
   input: {
-    position: "relative",
-    zIndex: 2,
     width: "100%",
+    height: 48,
     borderRadius: 10,
     border: "1px solid #233244",
     background: "#0b1220",
@@ -235,18 +224,22 @@ const webStyles: Record<string, React.CSSProperties> = {
     outline: "none",
     fontSize: 16,
     WebkitAppearance: "none",
-  },
-  btn: {
+    marginBottom: 12,
     position: "relative",
     zIndex: 2,
+  },
+  btn: {
     width: "100%",
+    height: 48,
     borderRadius: 10,
     border: 0,
     background: "#22c55e",
     color: "#0b1220",
     fontWeight: 800,
-    padding: "12px 12px",
+    padding: "0 12px",
     cursor: "pointer",
+    position: "relative",
+    zIndex: 2,
   },
   link: {
     color: "#93c5fd",

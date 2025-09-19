@@ -1,9 +1,10 @@
 // app/(public)/reset-password.web.tsx
 import { Head } from "expo-router";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { supabase } from "../../utils/supabase";
 
-/** Læs hash/query params til et key/value-objekt */
+/* --- Hjælpere til URL params og oprydning --- */
 const readParams = () => {
   const out: Record<string, string> = {};
   const raw =
@@ -17,48 +18,64 @@ const readParams = () => {
   }
   return out;
 };
-
-/** Fjern hash/query fra URL (beholder samme path) */
 const stripUrl = () => {
-  const cleanUrl = window.location.pathname; // fx /reset-password
   try {
-    history.replaceState(null, "", cleanUrl);
+    history.replaceState(null, "", window.location.pathname); // fx /reset-password
   } catch {}
 };
 
 export default function ResetPasswordWeb() {
   // UI-mode: "request" = send mail, "change" = skift password
   const [mode, setMode] = useState<"request" | "change">("request");
-
-  // --- Request (send mail)
+  // Request
   const [email, setEmail] = useState("");
   const [sending, setSending] = useState(false);
-
-  // --- Change (nyt password)
+  // Change
   const [newPass, setNewPass] = useState("");
   const [confirm, setConfirm] = useState("");
   const [changing, setChanging] = useState(false);
 
   const origin = useMemo(() => window.location.origin, []);
+  const portalHostRef = useRef<HTMLDivElement | null>(null);
+  const [mounted, setMounted] = useState(false);
 
-  // Sørg for at intet i resten af appen blokerer klik/fokus på denne side
+  // Opret et portal-root direkte under <body> med eget stacking-context
   useEffect(() => {
-    document.body.setAttribute("data-reset-password", "1");
+    const host = document.createElement("div");
+    host.id = "reset-portal-host";
+    // Gør den fuldskærm og *helt* klikbar uafhængigt af RNW
+    Object.assign(host.style, {
+      position: "fixed",
+      inset: "0",
+      zIndex: "2147483647",
+      pointerEvents: "auto",
+      background: "#0f1623",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: "24px",
+      overflow: "auto",
+    } as CSSStyleDeclaration);
+    document.body.appendChild(host);
+    portalHostRef.current = host;
+    setMounted(true);
+
+    // Sikr at body ikke har blokeringer
     document.documentElement.style.overflow = "auto";
     document.body.style.overflow = "auto";
     document.body.style.pointerEvents = "auto";
     document.body.style.position = "static";
-    document.body.style.webkitUserSelect = "auto";
-    document.body.style.userSelect = "auto";
+
     return () => {
-      document.body.removeAttribute("data-reset-password");
+      host.remove();
+      portalHostRef.current = null;
     };
   }, []);
 
+  // Supabase: håndtér fejl + etabler session (PKCE/implicit)
   useEffect(() => {
     const params = readParams();
 
-    // 1) Håndtér direkte fejl fra linket (fx otp_expired / invalid)
     if (params.error) {
       const msg =
         params.error_description?.replace(/\+/g, " ") ||
@@ -69,9 +86,9 @@ export default function ResetPasswordWeb() {
       return;
     }
 
-    // 2) Etabler session (PKCE & implicit)
     (async () => {
       try {
+        // PKCE: bytter code -> session. (No-op hvis ikke relevant)
         await supabase.auth.exchangeCodeForSession(window.location.href).catch(() => {});
         const { data } = await supabase.auth.getSession();
         if (data.session) {
@@ -81,7 +98,6 @@ export default function ResetPasswordWeb() {
       } catch {}
     })();
 
-    // 3) Lyt efter PASSWORD_RECOVERY / login
     const { data: subscription } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === "PASSWORD_RECOVERY" || session?.user) {
         setMode("change");
@@ -127,25 +143,13 @@ export default function ResetPasswordWeb() {
     }
   };
 
-  return (
+  const card = (
     <>
       <Head>
         <title>Nyt kodeord</title>
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <style>{`
-          /* Læg hele reset-UI ovenpå alt andet for at omgå overlays */
-          #reset-root {
-            position: fixed;
-            inset: 0;
-            z-index: 2147483647; /* max */
-            background: #0f1623;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 24px;
-            overflow: auto;
-          }
           #reset-card {
             width: 100%;
             max-width: 460px;
@@ -155,117 +159,92 @@ export default function ResetPasswordWeb() {
             padding: 20px;
             box-sizing: border-box;
           }
-          h1 {
-            color: #e5e7eb;
-            font-size: 22px;
-            font-weight: 800;
-            text-align: center;
-            margin: 0 0 10px 0;
+          #reset-card h1 {
+            color: #e5e7eb; font-size: 22px; font-weight: 800; text-align: center; margin: 0 0 10px 0;
           }
-          p {
-            color: #94a3b8;
-            text-align: center;
-            margin: 0 0 12px 0;
+          #reset-card p {
+            color: #94a3b8; text-align: center; margin: 0 0 12px 0;
           }
-          .input {
-            width: 100%;
-            border-radius: 10px;
-            border: 1px solid #233244;
-            background: #0b1220;
-            color: #e5e7eb;
-            padding: 12px 12px;
-            outline: none;
-            font-size: 16px;
-            -webkit-appearance: none;
-            margin-bottom: 12px;
+          #reset-card .input {
+            width: 100%; border-radius: 10px; border: 1px solid #233244;
+            background: #0b1220; color: #e5e7eb; padding: 12px 12px;
+            outline: none; font-size: 16px; -webkit-appearance: none; margin-bottom: 12px;
           }
-          .btn {
-            width: 100%;
-            border-radius: 10px;
-            border: 0;
-            background: #22c55e;
-            color: #0b1220;
-            font-weight: 800;
-            padding: 12px 12px;
-            cursor: pointer;
+          #reset-card .btn {
+            width: 100%; border-radius: 10px; border: 0;
+            background: #22c55e; color: #0b1220; font-weight: 800;
+            padding: 12px 12px; cursor: pointer;
           }
-          .btn[disabled] { opacity: .6; cursor: default; }
-          .linkRow { text-align: center; margin-top: 10px; }
-          .alink { color: #93c5fd; text-decoration: underline; font-size: 14px; }
+          #reset-card .btn[disabled] { opacity: .6; cursor: default; }
+          #reset-card .linkRow { text-align: center; margin-top: 10px; }
+          #reset-card .alink { color: #93c5fd; text-decoration: underline; font-size: 14px; }
         `}</style>
       </Head>
 
-      {/* Ren HTML – ingen RN <View> her */}
-      <div id="reset-root">
-        <form
-          id="reset-card"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (mode === "request") sendResetMail();
-            else changePassword();
-          }}
-        >
-          <h1>Nyt kodeord</h1>
-          <p>Indtast dit nye ønskede kodeord nedenfor.</p>
+      <form
+        id="reset-card"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (mode === "request") sendResetMail();
+          else changePassword();
+        }}
+      >
+        <h1>Nyt kodeord</h1>
+        <p>Indtast dit nye ønskede kodeord nedenfor.</p>
 
-          {mode === "request" ? (
-            <>
-              <input
-                className="input"
-                type="email"
-                placeholder="din@email.dk"
-                value={email}
-                onChange={(e) => setEmail(e.currentTarget.value)}
-                inputMode="email"
-                autoComplete="email"
-                autoFocus
-              />
-              <button
-                type="submit"
-                className="btn"
-                disabled={sending || !email.trim()}
-              >
-                {sending ? "Sender…" : "Send reset-mail"}
-              </button>
-
-              <div className="linkRow">
-                <a className="alink" href="/LoginScreen">Tilbage til log ind</a>
-              </div>
-            </>
-          ) : (
-            <>
-              <input
-                className="input"
-                type="password"
-                placeholder="Nyt kodeord"
-                value={newPass}
-                onChange={(e) => setNewPass(e.currentTarget.value)}
-                autoComplete="new-password"
-                autoFocus
-              />
-              <input
-                className="input"
-                type="password"
-                placeholder="Bekræft nyt kodeord"
-                value={confirm}
-                onChange={(e) => setConfirm(e.currentTarget.value)}
-                autoComplete="new-password"
-              />
-              <button
-                type="submit"
-                className="btn"
-                disabled={changing || !newPass || !confirm}
-              >
-                {changing ? "Gemmer…" : "Gem kodeord"}
-              </button>
-
-              <div className="linkRow">
-                <a className="alink" href="/LoginScreen">Gå til log ind</a>
-              </div>
-            </>
-          )}
-        </form>
-      </div>
+        {mode === "request" ? (
+          <>
+            <input
+              className="input"
+              type="email"
+              placeholder="din@email.dk"
+              value={email}
+              onChange={(e) => setEmail(e.currentTarget.value)}
+              inputMode="email"
+              autoComplete="email"
+              autoFocus
+            />
+            <button type="submit" className="btn" disabled={sending || !email.trim()}>
+              {sending ? "Sender…" : "Send reset-mail"}
+            </button>
+            <div className="linkRow">
+              <a className="alink" href="/LoginScreen">Tilbage til log ind</a>
+            </div>
+          </>
+        ) : (
+          <>
+            <input
+              className="input"
+              type="password"
+              placeholder="Nyt kodeord"
+              value={newPass}
+              onChange={(e) => setNewPass(e.currentTarget.value)}
+              autoComplete="new-password"
+              autoFocus
+            />
+            <input
+              className="input"
+              type="password"
+              placeholder="Bekræft nyt kodeord"
+              value={confirm}
+              onChange={(e) => setConfirm(e.currentTarget.value)}
+              autoComplete="new-password"
+            />
+            <button type="submit" className="btn" disabled={changing || !newPass || !confirm}>
+              {changing ? "Gemmer…" : "Gem kodeord"}
+            </button>
+            <div className="linkRow">
+              <a className="alink" href="/LoginScreen">Gå til log ind</a>
+            </div>
+          </>
+        )}
+      </form>
     </>
   );
+
+  // Indtil portalen er oprettet under <body>, rendrer vi ikke noget
+  if (!mounted || !portalHostRef.current) return null;
+
+  // Gør hele portalen klikbar uanset forældre med pointer-events:none
+  return createPortal(card, portalHostRef.current);
 }

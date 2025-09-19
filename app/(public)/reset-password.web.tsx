@@ -1,228 +1,99 @@
 // app/(public)/reset-password.web.tsx
-import { Head } from "expo-router";
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "../../utils/supabase";
 
-// Lille helper: læs hash/query til et key/value-objekt
-const readParams = () => {
-  const out: Record<string, string> = {};
-  const raw = window.location.hash?.slice(1) || window.location.search?.slice(1) || "";
-  for (const part of raw.split("&")) {
-    const [k, v] = part.split("=");
-    if (k) out[decodeURIComponent(k)] = decodeURIComponent(v || "");
-  }
-  return out;
-};
-
 export default function ResetPasswordWeb() {
-  // UI-mode: "request" = send mail, "change" = skift password
-  const [mode, setMode] = useState<"request" | "change">("request");
+  const [phase, setPhase] = useState<"checking"|"ready"|"saving"|"success"|"error">("checking");
+  const [p1, setP1] = useState("");
+  const [p2, setP2] = useState("");
+  const [err, setErr] = useState<string | null>(null);
 
-  // --- Request (send mail)
-  const [email, setEmail] = useState("");
-  const [sending, setSending] = useState(false);
+  const canSave = useMemo(() => p1.length >= 8 && p1 === p2, [p1, p2]);
 
-  // --- Change (nyt password)
-  const [newPass, setNewPass] = useState("");
-  const [confirm, setConfirm] = useState("");
-  const [changing, setChanging] = useState(false);
-
-  const subRef = useRef<ReturnType<typeof supabase.auth.onAuthStateChange> | null>(null);
-
-  // 1) Prøv at se om brugeren lander med en aktiv session (via hash token)
-  // 2) Fald tilbage til "request" hvis der er otp-fejl i hash
+  // 1) Byt kode fra URL til session
   useEffect(() => {
-    const params = readParams();
-    if (params.error) {
-      // Vis "request"-mode og en venlig besked (otp_expired/invalid)
-      setMode("request");
-      alert("Linket er udløbet eller ugyldigt. Anmod venligst om et nyt nulstillingslink.");
-      // Ryd hash, så back/refresh ikke bliver ved med at vise fejlen
-      history.replaceState(null, "", window.location.pathname);
-      return;
-    }
-
-    // Har vi allerede en session?
-    supabase.auth.getSession().then(({ data }) => {
-      if (data.session) {
-        setMode("change");
+    (async () => {
+      try {
+        await supabase.auth.exchangeCodeForSession(window.location.href);
+        setPhase("ready");
+      } catch (e: any) {
+        setErr(e?.message ?? "Kunne ikke starte nulstilling.");
+        setPhase("error");
       }
-    });
-
-    // Lyt efter PASSWORD_RECOVERY event
-    const { data: sub } = supabase.auth.onAuthStateChange((ev, session) => {
-      if (ev === "PASSWORD_RECOVERY" || (session && session.user)) {
-        setMode("change");
-      }
-    });
-    subRef.current = sub;
-
-    return () => subRef.current?.subscription.unsubscribe();
+    })();
   }, []);
 
-  const origin = useMemo(() => window.location.origin, []);
-
-  const sendResetMail = async () => {
-    const mail = email.trim();
-    if (!mail) return;
+  // 2) Gem nyt password
+  const onSave = async () => {
+    if (!canSave) return;
     try {
-      setSending(true);
-      const redirectTo = `${origin}/reset-password`;
-      const { error } = await supabase.auth.resetPasswordForEmail(mail, { redirectTo });
+      setPhase("saving");
+      const { error } = await supabase.auth.updateUser({ password: p1.trim() });
       if (error) throw error;
-      alert("Vi har sendt et link til at nulstille dit password. Tjek din mail.");
-      setEmail("");
+      setPhase("success");
     } catch (e: any) {
-      alert(e?.message ?? "Kunne ikke sende reset-mail. Prøv igen.");
-    } finally {
-      setSending(false);
+      setErr(e?.message ?? "Kunne ikke gemme password.");
+      setPhase("error");
     }
   };
 
-  const changePassword = async () => {
-    const pass = newPass.trim();
-    if (pass.length < 8) return alert("Vælg et password på mindst 8 tegn.");
-    if (pass !== confirm.trim()) return alert("Passwords er ikke ens.");
-    try {
-      setChanging(true);
-      const { error } = await supabase.auth.updateUser({ password: pass });
-      if (error) throw error;
-      alert("Dit password er opdateret. Du kan nu logge ind.");
-      setNewPass("");
-      setConfirm("");
-      window.location.href = "/LoginScreen";
-    } catch (e: any) {
-      alert(e?.message ?? "Kunne ikke opdatere password. Prøv igen.");
-    } finally {
-      setChanging(false);
-    }
-  };
-
+  // Simple, ren HTML for maksimal robusthed på web
   return (
-    <View style={styles.page}>
-      {/* Sikrer korrekt mobil viewport & title så iOS ikke “låser” focus */}
-      <Head>
-        <title>Nyt kodeord</title>
-        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-        <meta name="apple-mobile-web-app-capable" content="yes" />
-      </Head>
+    <div style={page}>
+      <div style={card}>
+        <h1 style={h1}>Nyt kodeord</h1>
 
-      <View style={styles.card}>
-        <Text style={styles.h1}>Nyt kodeord</Text>
-        <Text style={styles.copy}>
-          Indtast dit nye ønskede kodeord nedenfor.
-        </Text>
+        {phase === "checking" && <p>Henter nulstillingssession…</p>}
 
-        {mode === "request" ? (
+        {phase === "error" && (
           <>
-            {/* HTML input på web for 100% klik/fokus-sikkerhed */}
-            <input
-              type="email"
-              placeholder="din@email.dk"
-              value={email}
-              onChange={(e) => setEmail(e.currentTarget.value)}
-              style={webStyles.input}
-              inputMode="email"
-              autoComplete="email"
-            />
-            <button
-              onClick={sendResetMail}
-              disabled={sending || !email.trim()}
-              style={{ ...webStyles.btn, opacity: sending || !email.trim() ? 0.6 : 1 }}
-            >
-              {sending ? "Sender…" : "Send reset-mail"}
-            </button>
-
-            <div style={{ textAlign: "center", marginTop: 10 }}>
-              <a href="/LoginScreen" style={webStyles.link}>Tilbage til log ind</a>
-            </div>
+            <p style={{ color: "#fca5a5" }}>
+              {err || "Vi kunne ikke finde en aktiv nulstillingssession."}
+            </p>
+            <a href="/LoginScreen" style={btnGhost}>Til login</a>
           </>
-        ) : (
+        )}
+
+        {phase === "ready" && (
           <>
+            <p>Indtast dit nye ønskede kodeord nedenfor.</p>
             <input
               type="password"
               placeholder="Nyt kodeord"
-              value={newPass}
-              onChange={(e) => setNewPass(e.currentTarget.value)}
-              style={webStyles.input}
-              autoComplete="new-password"
+              value={p1}
+              onChange={(e) => setP1(e.target.value)}
+              style={input}
             />
             <input
               type="password"
-              placeholder="Bekræft nyt kodeord"
-              value={confirm}
-              onChange={(e) => setConfirm(e.currentTarget.value)}
-              style={webStyles.input}
-              autoComplete="new-password"
+              placeholder="Gentag kodeord"
+              value={p2}
+              onChange={(e) => setP2(e.target.value)}
+              style={input}
             />
-            <button
-              onClick={changePassword}
-              disabled={changing || !newPass || !confirm}
-              style={{ ...webStyles.btn, opacity: changing || !newPass || !confirm ? 0.6 : 1 }}
-            >
-              {changing ? "Gemmer…" : "Gem kodeord"}
+            <button onClick={onSave} disabled={!canSave} style={btnPrimary}>
+              Gem nyt kodeord
             </button>
-
-            <div style={{ textAlign: "center", marginTop: 10 }}>
-              <a href="/LoginScreen" style={webStyles.link}>Gå til log ind</a>
-            </div>
           </>
         )}
-      </View>
-    </View>
+
+        {phase === "saving" && <p>Gemmer…</p>}
+
+        {phase === "success" && (
+          <>
+            <p style={{ color: "#16a34a", fontWeight: 700 }}>Dit kodeord er opdateret.</p>
+            <a href="/LoginScreen" style={btnPrimary}>Til login</a>
+          </>
+        )}
+      </div>
+    </div>
   );
 }
 
-const styles = StyleSheet.create({
-  page: {
-    flex: 1,
-    backgroundColor: "#0f1623",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 24,
-    minHeight: "100vh",
-  },
-  card: {
-    width: "100%",
-    maxWidth: 460,
-    backgroundColor: "#111827",
-    borderWidth: 1,
-    borderColor: "#1f2937",
-    borderRadius: 16,
-    padding: 20,
-    gap: 12,
-  },
-  h1: { color: "#e5e7eb", fontSize: 22, fontWeight: "800", textAlign: "center" },
-  copy: { color: "#94a3b8", textAlign: "center" },
-});
-
-// RENE WEB-STYLES til <input>/<button>/<a>
-const webStyles: Record<string, React.CSSProperties> = {
-  input: {
-    width: "100%",
-    borderRadius: 10,
-    border: "1px solid #233244",
-    background: "#0b1220",
-    color: "#e5e7eb",
-    padding: "12px 12px",
-    outline: "none",
-    fontSize: 16,
-    WebkitAppearance: "none",
-  },
-  btn: {
-    width: "100%",
-    borderRadius: 10,
-    border: 0,
-    background: "#22c55e",
-    color: "#0b1220",
-    fontWeight: 800,
-    padding: "12px 12px",
-    cursor: "pointer",
-  },
-  link: {
-    color: "#93c5fd",
-    textDecoration: "underline",
-    fontSize: 14,
-  },
-};
+/* ——— inline styles for simplicity ——— */
+const page: React.CSSProperties = { minHeight: "100vh", background: "#0f1623", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 };
+const card: React.CSSProperties = { width: 420, maxWidth: "100%", background: "#111827", color: "#e5e7eb", borderRadius: 16, padding: 22, boxShadow: "0 6px 24px rgba(0,0,0,.25)" };
+const h1: React.CSSProperties = { margin: "0 0 12px", fontSize: 28, fontWeight: 800 };
+const input: React.CSSProperties = { width: "100%", padding: "12px 14px", borderRadius: 10, border: "1px solid #334155", marginBottom: 10, outline: "none", fontSize: 16 };
+const btnPrimary: React.CSSProperties = { display: "inline-block", padding: "12px 16px", borderRadius: 12, background: "#fff", color: "#0f1623", fontWeight: 800, textDecoration: "none", border: 0, cursor: "pointer", marginTop: 6 };
+const btnGhost: React.CSSProperties = { display: "inline-block", padding: "10px 14px", borderRadius: 12, background: "transparent", color: "#e5e7eb", border: "1px solid #475569", textDecoration: "none", marginTop: 8 };

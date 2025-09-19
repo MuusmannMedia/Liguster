@@ -1,9 +1,9 @@
 // app/(public)/reset-password.web.tsx
 import { Head } from "expo-router";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "../../utils/supabase";
 
-/* Helpers */
+/** Læs hash/query params til et key/value-objekt */
 const readParams = () => {
   const out: Record<string, string> = {};
   const raw =
@@ -17,27 +17,48 @@ const readParams = () => {
   }
   return out;
 };
+
+/** Fjern hash/query fra URL (beholder samme path) */
 const stripUrl = () => {
+  const cleanUrl = window.location.pathname; // fx /reset-password
   try {
-    history.replaceState(null, "", window.location.pathname);
+    history.replaceState(null, "", cleanUrl);
   } catch {}
 };
 
 export default function ResetPasswordWeb() {
+  // UI-mode: "request" = send mail, "change" = skift password
   const [mode, setMode] = useState<"request" | "change">("request");
+
+  // --- Request (send mail)
   const [email, setEmail] = useState("");
   const [sending, setSending] = useState(false);
 
+  // --- Change (nyt password)
   const [newPass, setNewPass] = useState("");
   const [confirm, setConfirm] = useState("");
   const [changing, setChanging] = useState(false);
 
-  const subRef = useRef<ReturnType<typeof supabase.auth.onAuthStateChange> | null>(null);
   const origin = useMemo(() => window.location.origin, []);
+
+  // Sørg for at intet i resten af appen blokerer klik/fokus på denne side
+  useEffect(() => {
+    document.body.setAttribute("data-reset-password", "1");
+    document.documentElement.style.overflow = "auto";
+    document.body.style.overflow = "auto";
+    document.body.style.pointerEvents = "auto";
+    document.body.style.position = "static";
+    document.body.style.webkitUserSelect = "auto";
+    document.body.style.userSelect = "auto";
+    return () => {
+      document.body.removeAttribute("data-reset-password");
+    };
+  }, []);
 
   useEffect(() => {
     const params = readParams();
 
+    // 1) Håndtér direkte fejl fra linket (fx otp_expired / invalid)
     if (params.error) {
       const msg =
         params.error_description?.replace(/\+/g, " ") ||
@@ -48,6 +69,7 @@ export default function ResetPasswordWeb() {
       return;
     }
 
+    // 2) Etabler session (PKCE & implicit)
     (async () => {
       try {
         await supabase.auth.exchangeCodeForSession(window.location.href).catch(() => {});
@@ -59,15 +81,15 @@ export default function ResetPasswordWeb() {
       } catch {}
     })();
 
+    // 3) Lyt efter PASSWORD_RECOVERY / login
     const { data: subscription } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === "PASSWORD_RECOVERY" || session?.user) {
         setMode("change");
         stripUrl();
       }
     });
-    subRef.current = subscription;
 
-    return () => subRef.current?.subscription?.unsubscribe?.();
+    return () => subscription.subscription.unsubscribe();
   }, []);
 
   const sendResetMail = async () => {
@@ -106,144 +128,144 @@ export default function ResetPasswordWeb() {
   };
 
   return (
-    // @ts-ignore – vi bruger ren HTML på web her
-    <div id="reset-top-overlay" style={styles.page}>
+    <>
       <Head>
         <title>Nyt kodeord</title>
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
-        <style>{globalCss}</style>
+        <style>{`
+          /* Læg hele reset-UI ovenpå alt andet for at omgå overlays */
+          #reset-root {
+            position: fixed;
+            inset: 0;
+            z-index: 2147483647; /* max */
+            background: #0f1623;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            overflow: auto;
+          }
+          #reset-card {
+            width: 100%;
+            max-width: 460px;
+            background: #111827;
+            border: 1px solid #1f2937;
+            border-radius: 16px;
+            padding: 20px;
+            box-sizing: border-box;
+          }
+          h1 {
+            color: #e5e7eb;
+            font-size: 22px;
+            font-weight: 800;
+            text-align: center;
+            margin: 0 0 10px 0;
+          }
+          p {
+            color: #94a3b8;
+            text-align: center;
+            margin: 0 0 12px 0;
+          }
+          .input {
+            width: 100%;
+            border-radius: 10px;
+            border: 1px solid #233244;
+            background: #0b1220;
+            color: #e5e7eb;
+            padding: 12px 12px;
+            outline: none;
+            font-size: 16px;
+            -webkit-appearance: none;
+            margin-bottom: 12px;
+          }
+          .btn {
+            width: 100%;
+            border-radius: 10px;
+            border: 0;
+            background: #22c55e;
+            color: #0b1220;
+            font-weight: 800;
+            padding: 12px 12px;
+            cursor: pointer;
+          }
+          .btn[disabled] { opacity: .6; cursor: default; }
+          .linkRow { text-align: center; margin-top: 10px; }
+          .alink { color: #93c5fd; text-decoration: underline; font-size: 14px; }
+        `}</style>
       </Head>
 
-      <div style={styles.card}>
-        <h1 style={styles.h1}>Nyt kodeord</h1>
-        <p style={styles.copy}>Indtast dit nye ønskede kodeord nedenfor.</p>
+      {/* Ren HTML – ingen RN <View> her */}
+      <div id="reset-root">
+        <form
+          id="reset-card"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (mode === "request") sendResetMail();
+            else changePassword();
+          }}
+        >
+          <h1>Nyt kodeord</h1>
+          <p>Indtast dit nye ønskede kodeord nedenfor.</p>
 
-        {mode === "request" ? (
-          <>
-            <input
-              type="email"
-              placeholder="din@email.dk"
-              value={email}
-              onChange={(e) => setEmail(e.currentTarget.value)}
-              style={styles.input}
-              inputMode="email"
-              autoComplete="email"
-            />
-            <button
-              onClick={sendResetMail}
-              disabled={sending || !email.trim()}
-              style={{ ...styles.btn, opacity: sending || !email.trim() ? 0.6 : 1 }}
-            >
-              {sending ? "Sender…" : "Send reset-mail"}
-            </button>
+          {mode === "request" ? (
+            <>
+              <input
+                className="input"
+                type="email"
+                placeholder="din@email.dk"
+                value={email}
+                onChange={(e) => setEmail(e.currentTarget.value)}
+                inputMode="email"
+                autoComplete="email"
+                autoFocus
+              />
+              <button
+                type="submit"
+                className="btn"
+                disabled={sending || !email.trim()}
+              >
+                {sending ? "Sender…" : "Send reset-mail"}
+              </button>
 
-            <div style={{ textAlign: "center", marginTop: 10 }}>
-              <a href="/LoginScreen" style={styles.link}>Tilbage til log ind</a>
-            </div>
-          </>
-        ) : (
-          <>
-            <input
-              type="password"
-              placeholder="Nyt kodeord"
-              value={newPass}
-              onChange={(e) => setNewPass(e.currentTarget.value)}
-              style={styles.input}
-              autoComplete="new-password"
-            />
-            <input
-              type="password"
-              placeholder="Bekræft nyt kodeord"
-              value={confirm}
-              onChange={(e) => setConfirm(e.currentTarget.value)}
-              style={styles.input}
-              autoComplete="new-password"
-            />
-            <button
-              onClick={changePassword}
-              disabled={changing || !newPass || !confirm}
-              style={{ ...styles.btn, opacity: changing || !newPass || !confirm ? 0.6 : 1 }}
-            >
-              {changing ? "Gemmer…" : "Gem kodeord"}
-            </button>
+              <div className="linkRow">
+                <a className="alink" href="/LoginScreen">Tilbage til log ind</a>
+              </div>
+            </>
+          ) : (
+            <>
+              <input
+                className="input"
+                type="password"
+                placeholder="Nyt kodeord"
+                value={newPass}
+                onChange={(e) => setNewPass(e.currentTarget.value)}
+                autoComplete="new-password"
+                autoFocus
+              />
+              <input
+                className="input"
+                type="password"
+                placeholder="Bekræft nyt kodeord"
+                value={confirm}
+                onChange={(e) => setConfirm(e.currentTarget.value)}
+                autoComplete="new-password"
+              />
+              <button
+                type="submit"
+                className="btn"
+                disabled={changing || !newPass || !confirm}
+              >
+                {changing ? "Gemmer…" : "Gem kodeord"}
+              </button>
 
-            <div style={{ textAlign: "center", marginTop: 10 }}>
-              <a href="/LoginScreen" style={styles.link}>Gå til log ind</a>
-            </div>
-          </>
-        )}
+              <div className="linkRow">
+                <a className="alink" href="/LoginScreen">Gå til log ind</a>
+              </div>
+            </>
+          )}
+        </form>
       </div>
-    </div>
+    </>
   );
 }
-
-/* —————— Global CSS (kun for denne side) —————— */
-const globalCss = `
-  html, body, #root, #__next { height: 100%; }
-  body { margin: 0; background: #0f1623; overflow: auto !important; -webkit-overflow-scrolling: touch; }
-  /* Slå ALLE overlays/transitions/gestures fra og tving pointer-events til at virke */
-  *, *::before, *::after { transition: none !important; animation: none !important; }
-  #reset-top-overlay, #reset-top-overlay * { pointer-events: auto !important; -webkit-tap-highlight-color: transparent; }
-  /* Skjul eventuelle fast/fixed navbars/overlays fra app-layout */
-  header, nav, .nav, .topbar, .bottom-nav, [data-footer], [role="banner"], [role="navigation"] { display: none !important; }
-`;
-
-/* —————— Styles (ren CSS-in-JS for HTML elements) —————— */
-const styles: Record<string, React.CSSProperties> = {
-  page: {
-    position: "fixed",
-    inset: 0,
-    isolation: "isolate",      // egen stacking context
-    zIndex: 2147483647,        // helt øverst
-    background: "#0f1623",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 24,
-  },
-  card: {
-    width: "100%",
-    maxWidth: 460,
-    background: "#111827",
-    border: "1px solid #1f2937",
-    borderRadius: 16,
-    padding: 20,
-    boxShadow: "0 14px 40px rgba(0,0,0,0.35)",
-  },
-  h1: { color: "#e5e7eb", fontSize: 22, fontWeight: 800, textAlign: "center", margin: "0 0 8px" },
-  copy: { color: "#94a3b8", textAlign: "center", margin: "0 0 12px" },
-  input: {
-    width: "100%",
-    height: 48,
-    borderRadius: 10,
-    border: "1px solid #233244",
-    background: "#0b1220",
-    color: "#e5e7eb",
-    padding: "12px 12px",
-    outline: "none",
-    fontSize: 16,
-    WebkitAppearance: "none",
-    marginBottom: 12,
-    position: "relative",
-    zIndex: 2,
-  },
-  btn: {
-    width: "100%",
-    height: 48,
-    borderRadius: 10,
-    border: 0,
-    background: "#22c55e",
-    color: "#0b1220",
-    fontWeight: 800,
-    padding: "0 12px",
-    cursor: "pointer",
-    position: "relative",
-    zIndex: 2,
-  },
-  link: {
-    color: "#93c5fd",
-    textDecoration: "underline",
-    fontSize: 14,
-  },
-};

@@ -24,9 +24,7 @@ const stripUrl = () => {
   const cleanUrl = window.location.pathname; // fx /reset-password
   try {
     history.replaceState(null, "", cleanUrl);
-  } catch {
-    // no-op
-  }
+  } catch {}
 };
 
 export default function ResetPasswordWeb() {
@@ -43,7 +41,6 @@ export default function ResetPasswordWeb() {
   const [changing, setChanging] = useState(false);
 
   const subRef = useRef<ReturnType<typeof supabase.auth.onAuthStateChange> | null>(null);
-
   const origin = useMemo(() => window.location.origin, []);
 
   useEffect(() => {
@@ -60,24 +57,16 @@ export default function ResetPasswordWeb() {
       return;
     }
 
-    // 2) Forsøg at etablere session:
-    //    - Implicit flow: hash med access_token -> Supabase opretter session automatisk
-    //    - PKCE: query med code -> vi skal selv kalde exchangeCodeForSession
+    // 2) Etabler session (PKCE & implicit)
     (async () => {
       try {
-        // Hvis der ligger en kode i query, forsøg at bytte den til en session.
-        // (Kaldet er idempotent – fejler stille hvis ikke relevant.)
         await supabase.auth.exchangeCodeForSession(window.location.href).catch(() => {});
-
-        // Hvis session findes efter ovenstående, skift til "change"
         const { data } = await supabase.auth.getSession();
         if (data.session) {
           setMode("change");
           stripUrl();
         }
-      } catch {
-        // no-op – vi falder bare tilbage til "request"
-      }
+      } catch {}
     })();
 
     // 3) Lyt efter PASSWORD_RECOVERY / login
@@ -89,24 +78,17 @@ export default function ResetPasswordWeb() {
     });
     subRef.current = subscription;
 
-    return () => {
-      try {
-        subRef.current?.subscription?.unsubscribe?.();
-      } catch {}
-    };
+    return () => subRef.current?.subscription?.unsubscribe?.();
   }, []);
 
   const sendResetMail = async () => {
     const mail = email.trim();
     if (!mail) return;
-
     try {
       setSending(true);
-      // Linket i mailen skal lande på denne side igen:
       const redirectTo = `${origin}/reset-password`;
       const { error } = await supabase.auth.resetPasswordForEmail(mail, { redirectTo });
       if (error) throw error;
-
       alert("Vi har sendt et link til at nulstille dit password. Tjek din mail (og evt. spam).");
       setEmail("");
     } catch (e: any) {
@@ -120,15 +102,12 @@ export default function ResetPasswordWeb() {
     const pass = newPass.trim();
     if (pass.length < 8) return alert("Vælg et password på mindst 8 tegn.");
     if (pass !== confirm.trim()) return alert("Passwords er ikke ens.");
-
     try {
       setChanging(true);
       const { error } = await supabase.auth.updateUser({ password: pass });
       if (error) throw error;
-
       alert("Dit password er opdateret. Du kan nu logge ind.");
-      setNewPass("");
-      setConfirm("");
+      setNewPass(""); setConfirm("");
       window.location.href = "/LoginScreen";
     } catch (e: any) {
       alert(e?.message ?? "Kunne ikke opdatere password. Prøv igen.");
@@ -138,12 +117,20 @@ export default function ResetPasswordWeb() {
   };
 
   return (
-    <View style={styles.page}>
-      {/* Korrekt mobil viewport & title så iOS ikke “låser” focus */}
+    <View id="click-scope" style={styles.page}>
+      {/* Meta + CSS der sikrer klik/fokus på iOS/web */}
       <Head>
         <title>Nyt kodeord</title>
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
+        <style>{`
+          html, body, #root, #__next { height: 100%; }
+          body { margin: 0; overflow: auto !important; -webkit-overflow-scrolling: touch; }
+          /* Sørg for at intet overlay i appens layout blokerer klik på denne side */
+          #click-scope, #click-scope * { pointer-events: auto !important; }
+          /* Læg inputs/knapper øverst i stacking order (hjælper i iOS Safari) */
+          #click-scope input, #click-scope button { position: relative; z-index: 2; }
+        `}</style>
       </Head>
 
       <View style={styles.card}>
@@ -152,7 +139,6 @@ export default function ResetPasswordWeb() {
 
         {mode === "request" ? (
           <>
-            {/* Brug native <input> på web for stabil fokus/klik */}
             <input
               type="email"
               placeholder="din@email.dk"
@@ -218,6 +204,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     padding: 24,
     minHeight: "100vh",
+    // hjælp hvis et globalt element har høj z-index:
+    zIndex: 0,
   },
   card: {
     width: "100%",
@@ -236,6 +224,8 @@ const styles = StyleSheet.create({
 // Rene web-styles til <input>/<button>/<a>
 const webStyles: Record<string, React.CSSProperties> = {
   input: {
+    position: "relative",
+    zIndex: 2,
     width: "100%",
     borderRadius: 10,
     border: "1px solid #233244",
@@ -247,6 +237,8 @@ const webStyles: Record<string, React.CSSProperties> = {
     WebkitAppearance: "none",
   },
   btn: {
+    position: "relative",
+    zIndex: 2,
     width: "100%",
     borderRadius: 10,
     border: 0,

@@ -1,0 +1,154 @@
+<!-- public/reset.html -->
+<!doctype html>
+<html lang="da">
+  <head>
+    <meta charset="utf-8" />
+    <title>Nyt kodeord • Liguster</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0f1623" />
+    <meta http-equiv="Cache-Control" content="no-store" />
+    <style>
+      :root {
+        --bg: #0f1623;
+        --card: #111827;
+        --cardBorder: #1f2937;
+        --text: #e5e7eb;
+        --sub: #94a3b8;
+        --inputBg: #0b1220;
+        --inputBorder: #233244;
+        --btnBg: #22c55e;
+        --btnText: #0b1220;
+      }
+      html, body { height: 100%; margin: 0; background: var(--bg); }
+      body {
+        display: grid; place-items: center; padding: 24px;
+        -webkit-overflow-scrolling: touch;
+      }
+      .card {
+        width: 100%; max-width: 460px; background: var(--card);
+        border: 1px solid var(--cardBorder); border-radius: 16px;
+        padding: 20px; box-sizing: border-box;
+      }
+      h1 { color: var(--text); font: 800 22px system-ui, sans-serif; text-align: center; margin: 0 0 10px; }
+      p { color: var(--sub); text-align: center; margin: 0 0 12px; font: 500 15px system-ui, sans-serif; }
+      .input {
+        width: 100%; height: 48px; border-radius: 10px;
+        border: 1px solid var(--inputBorder); background: var(--inputBg);
+        color: var(--text); padding: 0 12px; margin: 0 0 12px;
+        font: 16px system-ui, sans-serif; outline: none; box-sizing: border-box;
+      }
+      .btn {
+        width: 100%; height: 50px; border-radius: 10px; border: 0;
+        background: var(--btnBg); color: var(--btnText);
+        font: 800 15px system-ui, sans-serif; cursor: pointer;
+      }
+      .btn[disabled] { opacity: .6; cursor: default; }
+      .center { text-align: center; margin-top: 10px; }
+      .link { color: #93c5fd; text-decoration: underline; font: 700 14px system-ui, sans-serif; }
+      .err {
+        background: #fee2e2; border: 1px solid #ef4444; color: #7f1d1d;
+        border-radius: 10px; padding: 8px 10px; font: 700 13px system-ui, sans-serif;
+        margin: 0 0 12px 0;
+      }
+      *, *::before, *::after { animation: none !important; transition: none !important; }
+    </style>
+  </head>
+  <body>
+    <div class="card" id="card">
+      <h1>Nyt kodeord</h1>
+      <p id="intro">Indtast dit nye ønskede kodeord nedenfor.</p>
+
+      <div id="err" class="err" style="display:none"></div>
+
+      <!-- MODE: request -->
+      <div id="mode-request" style="display:none">
+        <input id="email" class="input" type="email" inputmode="email" autocomplete="email" placeholder="din@email.dk" />
+        <button id="sendBtn" class="btn">Send reset-mail</button>
+        <div class="center"><a class="link" href="/LoginScreen">Tilbage til log ind</a></div>
+      </div>
+
+      <!-- MODE: change -->
+      <div id="mode-change" style="display:none">
+        <input id="pw1" class="input" type="password" autocomplete="new-password" placeholder="Nyt kodeord" />
+        <input id="pw2" class="input" type="password" autocomplete="new-password" placeholder="Bekræft nyt kodeord" />
+        <button id="saveBtn" class="btn">Gem kodeord</button>
+        <div class="center"><a class="link" href="/LoginScreen">Gå til log ind</a></div>
+      </div>
+    </div>
+
+    <script type="module">
+      import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0?bundle";
+
+      const SUPABASE_URL = "https://gizskyfynvyvhnaqcyax.supabase.co";
+      const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdpenNreWZ5bnZ5dmhuYXFjeWF4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA4NjQ2ODUsImV4cCI6MjA2NjQ0MDY4NX0.4CpLeX9NFoZLEbfwXkGSTOFwH7drrG7SeEHW51Ic_Bg";
+
+      const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false },
+      });
+
+      const $ = (id) => document.getElementById(id);
+      const errBox = $("err");
+      const modeRequest = $("mode-request");
+      const modeChange = $("mode-change");
+      const email = $("email");
+      const sendBtn = $("sendBtn");
+      const pw1 = $("pw1");
+      const pw2 = $("pw2");
+      const saveBtn = $("saveBtn");
+
+      const show = (el, yes) => (el.style.display = yes ? "" : "none");
+      const showErr = (msg) => { errBox.textContent = msg; show(errBox, !!msg); };
+      const setMode = (m) => { show(modeRequest, m==="request"); show(modeChange, m==="change"); showErr(""); };
+
+      function readParams() {
+        const out = {}; const raw = (location.hash?.slice(1) || location.search?.slice(1) || "");
+        for (const part of raw.split("&")) {
+          if (!part) continue; const [k,v] = part.split("="); if (k) out[decodeURIComponent(k)] = decodeURIComponent(v||"");
+        } return out;
+      }
+      function stripUrl() { try { history.replaceState(null, "", location.pathname); } catch {} }
+
+      (async function init() {
+        setMode("request");
+        const params = readParams();
+        if (params.error) { showErr(params.error_description?.replace(/\+/g," ") || "Linket er udløbet eller ugyldigt."); stripUrl(); }
+        try {
+          await supabase.auth.exchangeCodeForSession(location.href).catch(()=>{});
+          const { data } = await supabase.auth.getSession();
+          if (data?.session) { setMode("change"); stripUrl(); }
+        } catch {}
+        const { data: sub } = supabase.auth.onAuthStateChange((ev, session) => {
+          if (ev==="PASSWORD_RECOVERY" || session?.user) { setMode("change"); stripUrl(); }
+        });
+        window.addEventListener("beforeunload", () => sub.subscription.unsubscribe());
+      })();
+
+      sendBtn?.addEventListener("click", async () => {
+        const mail = (email?.value||"").trim(); if (!mail) return showErr("Udfyld din email.");
+        sendBtn.disabled = true; showErr("");
+        try {
+          const redirectTo = `${location.origin}/reset.html`;
+          const { error } = await supabase.auth.resetPasswordForEmail(mail, { redirectTo });
+          if (error) throw error;
+          alert("Vi har sendt et link til at nulstille dit password. Tjek din mail (og evt. spam).");
+          email.value = "";
+        } catch (e) { showErr(e?.message || "Kunne ikke sende reset-mail. Prøv igen."); }
+        finally { sendBtn.disabled = false; }
+      });
+
+      saveBtn?.addEventListener("click", async () => {
+        const a = (pw1?.value||"").trim(); const b = (pw2?.value||"").trim();
+        if (a.length<8) return showErr("Vælg et password på mindst 8 tegn.");
+        if (a!==b) return showErr("Passwords er ikke ens.");
+        saveBtn.disabled = true; showErr("");
+        try {
+          const { error } = await supabase.auth.updateUser({ password: a });
+          if (error) throw error;
+          alert("Dit password er opdateret. Du kan nu logge ind.");
+          pw1.value=""; pw2.value=""; location.href="/LoginScreen";
+        } catch (e) { showErr(e?.message || "Kunne ikke opdatere password. Prøv igen."); }
+        finally { saveBtn.disabled = false; }
+      });
+    </script>
+  </body>
+</html>

@@ -1,64 +1,46 @@
 // app/(public)/reset-password-native.tsx
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import {
-    Alert,
-    Keyboard,
-    KeyboardAvoidingView,
-    Platform,
-    SafeAreaView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    TouchableWithoutFeedback,
-    View,
+  Alert, Keyboard, KeyboardAvoidingView, Platform,
+  StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View,
 } from "react-native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { supabase } from "../../utils/supabase";
 
-export const options = { headerShown: false };
-
-const RESET_REDIRECT = "https://liguster-app.dk/reset-password"; // apex + no trailing slash
+const isEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim().toLowerCase());
 
 export default function ResetPasswordNative() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [email, setEmail] = useState("");
   const [sending, setSending] = useState(false);
+  const inputRef = useRef<TextInput>(null);
 
-  const onBack = () => router.back();
+  const canSend = useMemo(() => isEmail(email), [email]);
 
-  const isValidEmail = (v: string) =>
-    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
-
-  const sendReset = async () => {
-    const mail = email.trim().toLowerCase();
-    if (!isValidEmail(mail)) {
-      Alert.alert("Ugyldig e-mail", "Skriv en gyldig e-mailadresse.");
-      return;
-    }
-
+  const onSend = async () => {
+    if (!canSend || sending) return;
     try {
       setSending(true);
+      Keyboard.dismiss();
 
-      const { error } = await supabase.auth.resetPasswordForEmail(mail, {
-        redirectTo: RESET_REDIRECT,
-      });
+      // ← VIGTIGT: peg på din webside
+      const redirectTo = "https://liguster-app.dk/reset-password";
 
+      const { error } = await supabase.auth.resetPasswordForEmail(
+        email.trim().toLowerCase(),
+        { redirectTo }
+      );
       if (error) throw error;
 
       Alert.alert(
         "Tjek din mail",
-        "Vi har sendt et link til at nulstille dit password. Brug det nyeste link og åbn det med det samme."
+        "Vi har sendt et link til at nulstille dit password."
       );
       router.back();
     } catch (e: any) {
-      const msg = String(e?.message ?? e ?? "");
-      // Hyppige supabase-fejl oversat lidt venligt
-      if (msg.includes("rate")) {
-        Alert.alert("Ro på 🙂", "Du har anmodet for nylig. Prøv igen om lidt.");
-      } else {
-        Alert.alert("Kunne ikke sende reset-mail", msg);
-      }
+      Alert.alert("Kunne ikke sende link", e?.message ?? "Prøv igen.");
     } finally {
       setSending(false);
     }
@@ -71,52 +53,49 @@ export default function ResetPasswordNative() {
         behavior={Platform.select({ ios: "padding", android: "height" })}
       >
         <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-          <SafeAreaView style={styles.safe}>
+          <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
             {/* Tilbage */}
             <TouchableOpacity
-              style={styles.backIcon}
-              onPress={onBack}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              onPress={() => router.back()}
+              hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
+              style={[styles.back, { top: insets.top + 8 }]}
             >
-              <Text style={styles.backIconText}>‹</Text>
+              <Text style={{ fontSize: 30, color: "#fff" }}>‹</Text>
             </TouchableOpacity>
 
             <View style={styles.centered}>
               <Text style={styles.title}>Nulstil password</Text>
-              <Text style={styles.copy}>
-                Indtast din e-mail. Vi sender dig et link til at nulstille dit password.
-              </Text>
 
               <TextInput
+                ref={inputRef}
                 style={styles.input}
                 placeholder="din@email.dk"
-                placeholderTextColor="#999"
+                placeholderTextColor="#9aa3ad"
                 autoCapitalize="none"
                 keyboardType="email-address"
-                textContentType="username"
+                autoCorrect={false}
                 value={email}
                 onChangeText={setEmail}
                 returnKeyType="send"
-                onSubmitEditing={sendReset}
+                onSubmitEditing={onSend}
                 editable={!sending}
               />
 
               <TouchableOpacity
+                onPress={onSend}
+                disabled={!canSend || sending}
                 style={[
-                  styles.button,
-                  (sending || !isValidEmail(email)) && { opacity: 0.6 },
+                  styles.primaryBtn,
+                  (!canSend || sending) && { opacity: 0.6 },
                 ]}
-                onPress={sendReset}
-                disabled={sending || !isValidEmail(email)}
-                activeOpacity={0.85}
               >
-                <Text style={styles.buttonText}>
+                <Text style={styles.primaryText}>
                   {sending ? "Sender…" : "SEND RESET-LINK"}
                 </Text>
               </TouchableOpacity>
 
-              <Text style={styles.hint}>
-                Tip: Hvis mailen ikke kommer, så tjek spam, og prøv igen om 1-2 min.
+              <Text style={styles.tip}>
+                Tip: Hvis mailen ikke kommer, så tjek spam — eller prøv igen om 1–2 min.
               </Text>
             </View>
           </SafeAreaView>
@@ -129,49 +108,14 @@ export default function ResetPasswordNative() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#171C22" },
   safe: { flex: 1 },
-
-  centered: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 20,
-  },
-
-  backIcon: {
-    position: "absolute",
-    top: 12,
-    left: 12,
-    zIndex: 10,
-    width: 36,
-    height: 44,
-    justifyContent: "center",
-    alignItems: "flex-start",
-  },
-  backIconText: { fontSize: 30, color: "#fff" },
-
-  title: { color: "#fff", fontSize: 26, fontWeight: "700", marginBottom: 10 },
-  copy: { color: "#cfd6dd", textAlign: "center", marginBottom: 16 },
-
+  back: { position: "absolute", left: 12, zIndex: 10, width: 44, height: 44, justifyContent: "center" },
+  centered: { flex: 1, paddingHorizontal: 24, justifyContent: "center" },
+  title: { color: "#fff", fontSize: 32, fontWeight: "800", marginBottom: 16, textAlign: "center" },
   input: {
-    backgroundColor: "#fff",
-    width: 280,
-    height: 48,
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    marginBottom: 16,
-    fontSize: 16,
+    backgroundColor: "#fff", borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14,
+    fontSize: 16, marginBottom: 12,
   },
-
-  button: {
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    width: 220,
-    height: 52,
-    alignItems: "center",
-    justifyContent: "center",
-    elevation: 1,
-  },
-  buttonText: { color: "#171C22", fontSize: 16, fontWeight: "700", letterSpacing: 0.5 },
-
-  hint: { color: "#9aa3ad", marginTop: 10, fontSize: 12, textAlign: "center" },
+  primaryBtn: { backgroundColor: "#fff", borderRadius: 14, paddingVertical: 16, alignItems: "center" },
+  primaryText: { color: "#0f1623", fontWeight: "800", fontSize: 16, letterSpacing: 0.3 },
+  tip: { color: "#cbd5e1", marginTop: 14, textAlign: "center" },
 });

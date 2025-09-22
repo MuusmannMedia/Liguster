@@ -19,28 +19,52 @@
         --btnBg: #22c55e;
         --btnText: #0b1220;
       }
+
+      /* Grundlag */
       html, body { height: 100%; margin: 0; background: var(--bg); }
-      body {
-        display: grid; place-items: center; padding: 24px;
+      /* Sørg for at app-layout ikke kan blokere klik: vi lægger alt i et fixed overlay */
+      .page {
+        position: fixed; inset: 0;
+        z-index: 2147483647;              /* øverst af alt */
+        pointer-events: auto !important;  /* klikbar uanset forældre */
+        display: grid; place-items: center;
+        padding: 24px; background: var(--bg);
         -webkit-overflow-scrolling: touch;
+        overflow: auto;
       }
+      /* Alt indeni skal være klikbart */
+      .page, .page * { pointer-events: auto !important; }
+
       .card {
         width: 100%; max-width: 460px; background: var(--card);
         border: 1px solid var(--cardBorder); border-radius: 16px;
         padding: 20px; box-sizing: border-box;
       }
-      h1 { color: var(--text); font: 800 22px system-ui, sans-serif; text-align: center; margin: 0 0 10px; }
-      p { color: var(--sub); text-align: center; margin: 0 0 12px; font: 500 15px system-ui, sans-serif; }
+      h1 {
+        color: var(--text);
+        font: 800 22px/1.2 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+        text-align: center; margin: 0 0 10px 0;
+      }
+      p {
+        color: var(--sub); text-align: center; margin: 0 0 12px 0;
+        font: 500 15px/1.4 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      }
+
       .input {
         width: 100%; height: 48px; border-radius: 10px;
         border: 1px solid var(--inputBorder); background: var(--inputBg);
-        color: var(--text); padding: 0 12px; margin: 0 0 12px;
-        font: 16px system-ui, sans-serif; outline: none; box-sizing: border-box;
+        color: var(--text); padding: 0 12px; margin: 0 0 12px 0;
+        font: 16px/1 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+        outline: none; box-sizing: border-box;
+        -webkit-appearance: none;
+        touch-action: manipulation;        /* iOS klik/fokus */
+        -webkit-user-select: text;
       }
       .btn {
         width: 100%; height: 50px; border-radius: 10px; border: 0;
         background: var(--btnBg); color: var(--btnText);
-        font: 800 15px system-ui, sans-serif; cursor: pointer;
+        font: 800 15px/1 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+        cursor: pointer; touch-action: manipulation;
       }
       .btn[disabled] { opacity: .6; cursor: default; }
       .center { text-align: center; margin-top: 10px; }
@@ -50,33 +74,48 @@
         border-radius: 10px; padding: 8px 10px; font: 700 13px system-ui, sans-serif;
         margin: 0 0 12px 0;
       }
+
+      /* Ingen animationer overhovedet */
       *, *::before, *::after { animation: none !important; transition: none !important; }
     </style>
   </head>
+
   <body>
-    <div class="card" id="card">
-      <h1>Nyt kodeord</h1>
-      <p id="intro">Indtast dit nye ønskede kodeord nedenfor.</p>
+    <div class="page" id="page">
+      <form class="card" id="card">
+        <h1>Nyt kodeord</h1>
+        <p id="intro">Indtast dit nye ønskede kodeord nedenfor.</p>
 
-      <div id="err" class="err" style="display:none"></div>
+        <!-- Fejlbesked -->
+        <div id="err" class="err" style="display:none"></div>
 
-      <!-- MODE: request -->
-      <div id="mode-request" style="display:none">
-        <input id="email" class="input" type="email" inputmode="email" autocomplete="email" placeholder="din@email.dk" />
-        <button id="sendBtn" class="btn">Send reset-mail</button>
-        <div class="center"><a class="link" href="/LoginScreen">Tilbage til log ind</a></div>
-      </div>
+        <!-- MODE: request (send mail) -->
+        <div id="mode-request" style="display:none">
+          <input id="email" class="input" type="email" inputmode="email"
+                 autocomplete="username email" placeholder="din@email.dk" />
+          <button id="sendBtn" class="btn" type="button">Send reset-mail</button>
+          <div class="center"><a class="link" href="/LoginScreen">Tilbage til log ind</a></div>
+        </div>
 
-      <!-- MODE: change -->
-      <div id="mode-change" style="display:none">
-        <input id="pw1" class="input" type="password" autocomplete="new-password" placeholder="Nyt kodeord" />
-        <input id="pw2" class="input" type="password" autocomplete="new-password" placeholder="Bekræft nyt kodeord" />
-        <button id="saveBtn" class="btn">Gem kodeord</button>
-        <div class="center"><a class="link" href="/LoginScreen">Gå til log ind</a></div>
-      </div>
+        <!-- MODE: change (nyt password) -->
+        <div id="mode-change" style="display:none">
+          <input id="pw1" class="input" type="password" autocomplete="new-password" placeholder="Nyt kodeord" />
+          <input id="pw2" class="input" type="password" autocomplete="new-password" placeholder="Bekræft nyt kodeord" />
+          <button id="saveBtn" class="btn" type="button">Gem kodeord</button>
+          <div class="center"><a class="link" href="/LoginScreen">Gå til log ind</a></div>
+        </div>
+      </form>
     </div>
 
     <script type="module">
+      // 🔧 Sørg for at intet fra app-layout blokerer klik på denne side
+      try {
+        document.documentElement.style.overflow = "auto";
+        document.body.style.overflow = "auto";
+        document.body.style.pointerEvents = "auto";
+        document.body.style.position = "static";
+      } catch {}
+
       import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0?bundle";
 
       const SUPABASE_URL = "https://gizskyfynvyvhnaqcyax.supabase.co";
@@ -95,59 +134,98 @@
       const pw1 = $("pw1");
       const pw2 = $("pw2");
       const saveBtn = $("saveBtn");
+      const card = $("card");
 
       const show = (el, yes) => (el.style.display = yes ? "" : "none");
-      const showErr = (msg) => { errBox.textContent = msg; show(errBox, !!msg); };
-      const setMode = (m) => { show(modeRequest, m==="request"); show(modeChange, m==="change"); showErr(""); };
+      const showErr = (msg) => { errBox.textContent = msg || ""; show(errBox, !!msg); };
+      const setMode = (m) => {
+        show(modeRequest, m === "request");
+        show(modeChange, m === "change");
+        showErr("");
+        // sæt fokus
+        setTimeout(() => (m === "request" ? email?.focus() : pw1?.focus()), 0);
+      };
 
+      // Hash/query helpers
       function readParams() {
-        const out = {}; const raw = (location.hash?.slice(1) || location.search?.slice(1) || "");
+        const out = {};
+        const raw = (location.hash?.slice(1) || location.search?.slice(1) || "");
         for (const part of raw.split("&")) {
-          if (!part) continue; const [k,v] = part.split("="); if (k) out[decodeURIComponent(k)] = decodeURIComponent(v||"");
-        } return out;
+          if (!part) continue;
+          const [k, v] = part.split("=");
+          if (k) out[decodeURIComponent(k)] = decodeURIComponent(v || "");
+        }
+        return out;
       }
       function stripUrl() { try { history.replaceState(null, "", location.pathname); } catch {} }
 
+      // Init – håndtér fejl & etabler session (implicit + PKCE)
       (async function init() {
         setMode("request");
         const params = readParams();
-        if (params.error) { showErr(params.error_description?.replace(/\+/g," ") || "Linket er udløbet eller ugyldigt."); stripUrl(); }
+
+        if (params.error) {
+          const msg = (params.error_description || "Linket er udløbet eller ugyldigt.").replace(/\+/g, " ");
+          showErr(msg);
+          stripUrl();
+        }
+
         try {
-          await supabase.auth.exchangeCodeForSession(location.href).catch(()=>{});
+          // PKCE: bytter code→session (no-op hvis ikke relevant)
+          await supabase.auth.exchangeCodeForSession(location.href).catch(() => {});
           const { data } = await supabase.auth.getSession();
           if (data?.session) { setMode("change"); stripUrl(); }
         } catch {}
+
+        // Lyt efter PASSWORD_RECOVERY/login
         const { data: sub } = supabase.auth.onAuthStateChange((ev, session) => {
-          if (ev==="PASSWORD_RECOVERY" || session?.user) { setMode("change"); stripUrl(); }
+          if (ev === "PASSWORD_RECOVERY" || session?.user) { setMode("change"); stripUrl(); }
         });
         window.addEventListener("beforeunload", () => sub.subscription.unsubscribe());
       })();
 
+      // Form submit via Enter
+      card?.addEventListener("submit", (e) => {
+        e.preventDefault();
+      });
+
+      // Send reset-mail
       sendBtn?.addEventListener("click", async () => {
-        const mail = (email?.value||"").trim(); if (!mail) return showErr("Udfyld din email.");
+        const mail = (email?.value || "").trim();
+        if (!mail) return showErr("Udfyld din email.");
         sendBtn.disabled = true; showErr("");
         try {
+          // 🔁 Land på denne statiske side UDEN www:
           const redirectTo = `${location.origin}/reset.html`;
           const { error } = await supabase.auth.resetPasswordForEmail(mail, { redirectTo });
           if (error) throw error;
           alert("Vi har sendt et link til at nulstille dit password. Tjek din mail (og evt. spam).");
           email.value = "";
-        } catch (e) { showErr(e?.message || "Kunne ikke sende reset-mail. Prøv igen."); }
-        finally { sendBtn.disabled = false; }
+        } catch (e) {
+          showErr(e?.message || "Kunne ikke sende reset-mail. Prøv igen.");
+        } finally {
+          sendBtn.disabled = false;
+        }
       });
 
+      // Gem nyt password
       saveBtn?.addEventListener("click", async () => {
-        const a = (pw1?.value||"").trim(); const b = (pw2?.value||"").trim();
-        if (a.length<8) return showErr("Vælg et password på mindst 8 tegn.");
-        if (a!==b) return showErr("Passwords er ikke ens.");
+        const a = (pw1?.value || "").trim();
+        const b = (pw2?.value || "").trim();
+        if (a.length < 8) return showErr("Vælg et password på mindst 8 tegn.");
+        if (a !== b) return showErr("Passwords er ikke ens.");
         saveBtn.disabled = true; showErr("");
         try {
           const { error } = await supabase.auth.updateUser({ password: a });
           if (error) throw error;
           alert("Dit password er opdateret. Du kan nu logge ind.");
-          pw1.value=""; pw2.value=""; location.href="/LoginScreen";
-        } catch (e) { showErr(e?.message || "Kunne ikke opdatere password. Prøv igen."); }
-        finally { saveBtn.disabled = false; }
+          pw1.value = ""; pw2.value = "";
+          location.href = "/LoginScreen";
+        } catch (e) {
+          showErr(e?.message || "Kunne ikke opdatere password. Prøv igen.");
+        } finally {
+          saveBtn.disabled = false;
+        }
       });
     </script>
   </body>
